@@ -1,0 +1,20 @@
+.hub { max-width: 1120px; margin: 0 auto; padding: 0 16px 64px; }
+.hub-hero { padding: 56px 0 32px; max-width: 680px; }
+.hub-hero h1 { font-family: var(--bdl-font-display); font-weight: 600; font-size: clamp(34px, 6vw, 52px); line-height: 1.05; letter-spacing: -0.02em; margin: 0 0 14px; }
+.hub-hero p { font-size: 17px; color: var(--bdl-muted); margin: 0; }
+.hub-facts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.hub-fact { font-size: 13px; padding: 5px 11px; border-radius: 999px; background: var(--bdl-accent-soft); color: var(--bdl-text); }
+.hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.hub-card { position: relative; display: flex; flex-direction: column; background: var(--bdl-surface); border: 1px solid var(--bdl-border); border-radius: 16px; overflow: hidden; text-decoration: none; color: inherit; transition: transform 0.15s, box-shadow 0.15s; }
+a.hub-card:hover { transform: translateY(-2px); box-shadow: var(--bdl-shadow); }
+a.hub-card:focus-visible { outline: 2px solid var(--bdl-accent); outline-offset: 2px; }
+.hub-art { aspect-ratio: 4 / 3; display: grid; place-items: center; background: var(--bdl-surface-2); color: var(--bdl-accent); }
+.hub-art svg { width: 46%; height: auto; }
+.hub-card[data-status='planned'] .hub-art { color: var(--bdl-muted); opacity: 0.7; }
+.hub-body { padding: 14px 16px 18px; display: grid; gap: 4px; }
+.hub-cat { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--bdl-muted); font-weight: 700; }
+.hub-name { font-weight: 700; font-size: 17px; }
+.hub-blurb { font-size: 14px; color: var(--bdl-muted); }
+.hub-badge { position: absolute; top: 12px; left: 12px; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--bdl-surface); border: 1px solid var(--bdl-border); color: var(--bdl-muted); }
+.hub-badge[data-kind='live'] { background: var(--bdl-accent); border-color: var(--bdl-accent); color: var(--bdl-accent-ink); }
+.hub-footer { margin-top: 48px; font-size: 13px; color: var(--bdl-muted); }

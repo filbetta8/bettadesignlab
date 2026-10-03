@@ -1,0 +1,14 @@
+{
+  "$comment": "Registro unico di tutti i generatori. L'hub genera le card da qui e la build crea una pagina per ogni voce con status 'live' o 'beta'. id = cartella in apps/.",
+  "generators": [
+    { "id": "coaster", "name": "Sottobicchieri", "status": "live", "category": "Casa", "blurb": "Sottobicchieri tondi, quadrati o esagonali con bordo rialzato e motivo in rilievo a due colori." },
+    { "id": "keychain", "name": "Portachiavi", "status": "planned", "category": "Accessori", "blurb": "Portachiavi con nome, font e anello." },
+    { "id": "keycap", "name": "Keycap", "status": "planned", "category": "Tech", "blurb": "Keycap MX con icone, lettere o loghi." },
+    { "id": "magnet", "name": "Magneti", "status": "planned", "category": "Casa", "blurb": "Magneti da frigo con alloggiamento calamita." },
+    { "id": "foldbox", "name": "Scatole pieghevoli", "status": "planned", "category": "Packaging", "blurb": "Scatole stampate piatte e piegate a mano." },
+    { "id": "vase", "name": "Vasi d'arredo", "status": "planned", "category": "Arredo", "blurb": "Vasi parametrici con torsione e sezione personalizzabile." },
+    { "id": "tray", "name": "Svuotatasche", "status": "planned", "category": "Arredo", "blurb": "Vassoi e svuotatasche con scomparti." },
+    { "id": "kitchen", "name": "Cucina", "status": "planned", "category": "Casa", "blurb": "Accessori per la cucina su misura." },
+    { "id": "desk-organizer", "name": "Desk organizer", "status": "planned", "category": "Ufficio", "blurb": "Organizer modulari per la scrivania." }
+  ]
+}

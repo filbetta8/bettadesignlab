@@ -13,12 +13,14 @@ function reverseFaces(indices: Uint32Array): Uint32Array {
   return out;
 }
 /** Cap e intarsi restano registrati tra loro, ribaltati come un unico gruppo. */
-export function printAssembly(parts: readonly Part[], size: number): Part[] {
+export function printAssembly(parts: readonly Part[], _size: number): Part[] {
   const capGroup = parts.filter((p) => p.id !== 'base');
   const b = bounds(capGroup);
+  const baseParts = parts.filter((p) => p.id === 'base');
+  const shift = baseParts.length ? bounds(baseParts).max[0] - b.min[0] + 10 : -(b.min[0] + b.max[0]) / 2;
   const flipped = capGroup.map((part) => {
     const positions = new Float32Array(part.mesh.positions);
-    for (let i = 0; i < positions.length; i += 3) { positions[i] += size + 15; positions[i + 2] = b.max[2] - positions[i + 2]; }
+    for (let i = 0; i < positions.length; i += 3) { positions[i] += shift; positions[i + 2] = b.max[2] - positions[i + 2]; }
     return { ...part, mesh: { positions, indices: reverseFaces(part.mesh.indices) } };
   });
   return [...parts.filter((p) => p.id === 'base'), ...flipped];

@@ -1,6 +1,7 @@
 import { Scope, outline, toMeshData, type Part, type ManifoldToplevel, type CrossSection, type Manifold } from '@bdl/geometry';
 import type { SvgArtwork } from '../../coaster/src/svg.ts';
 import { sanitize, type Params } from './params.ts';
+import { readBlocks, blockOutline } from './blocks.ts';
 
 /** Montaggio MX standard: piano di appoggio 10.3 mm, piastra 1.5 mm.
  * Il fondo lascia spazio al corpo inferiore e ai pin, senza PCB o cablaggio. */
@@ -9,7 +10,7 @@ export function buildKeycap(M: ManifoldToplevel, input: Params, artwork?: SvgArt
   const parts: Part[] = [], warnings: string[] = [];
   const plateZ = p.compact ? 9.3 : 10.3, capZ = plateZ + 7;
   const floor = p.compact ? 1 : 1.8;
-  const positions = Array.from({ length: p.switches }, (_, i) => (i - (p.switches - 1) / 2) * p.spacing);
+  const positions = Array.from({ length: p.switches }, (_, i) => (i - (p.switches - 1) / 2) * p.spacing + p.switchX);
   try {
     const { CrossSection: C } = M;
     const solid = (cs: CrossSection, h: number, z = 0) => s.t(s.t(cs.extrude(h)).translate([0, 0, z]));
@@ -25,7 +26,8 @@ export function buildKeycap(M: ManifoldToplevel, input: Params, artwork?: SvgArt
       drawing = s.t(C.union(regions));
     }
     let capOutline: CrossSection;
-    if (p.shape === 'artwork') {
+    if (p.shape === 'blocks') capOutline = blockOutline(M, s, readBlocks(p.blockData));
+    else if (p.shape === 'artwork') {
       if (!artwork || !drawing) throw new Error('Carica un disegno prima di usare la sagoma personalizzata.');
       const filled = artwork.filledShapes ?? artwork.shapes;
       if (!filled.length) throw new Error('La sagoma richiede aree piene.');
@@ -37,6 +39,12 @@ export function buildKeycap(M: ManifoldToplevel, input: Params, artwork?: SvgArt
       if (components.length !== 1) throw new Error('La sagoma ha isole separate: usa una forma standard oppure collega gli elementi.');
       warnings.push('La sagoma include un nucleo di sostegno per gli switch.');
     } else capOutline = outline(M, s, p.shape, p.size, 3);
+    if (p.shape === 'blocks' || p.switchX !== 0 || p.switchY !== 0) {
+      for (const x of positions) {
+        const footprint = s.t(square(18.4, 18.4).translate([x, p.switchY]));
+        if (s.t(footprint.subtract(capOutline)).area() > 0.01) throw new Error('Uno switch è troppo vicino al bordo. Spostalo oppure ingrandisci il blocco che lo ospita.');
+      }
+    }
     const outside = s.t(capOutline.offset(2 + p.gap, 'Round', 2, 64));
     if (p.product === 'clicker') {
       let base = solid(outside, plateZ + 1.5 + p.rim);
@@ -45,21 +53,30 @@ export function buildKeycap(M: ManifoldToplevel, input: Params, artwork?: SvgArt
       if (p.compact) {
         // La gonna del pulsante scende nella base. Restano i ponti di montaggio
         // attorno alle aperture MX, separati dalla gonna da 0.3 mm per lato.
-        const mounts = s.t(C.union(positions.map((x) => s.t(square(17.2, 17.2).translate([x, 0])))));
+        const mounts = s.t(C.union(positions.map((x) => s.t(square(17.2, 17.2).translate([x, p.switchY])))));
         const skirtSpace = s.t(s.t(capOutline.offset(p.gap, 'Round', 2, 64)).subtract(mounts));
         base = s.t(base.subtract(solid(skirtSpace, 15, plateZ - 0.3)));
       }
       for (const x of positions) {
-        const lower = s.t(square(16 + p.socketFit, 16 + p.socketFit).translate([x, 0]));
-        const throat = s.t(square(14 + p.socketFit, 14 + p.socketFit).translate([x, 0]));
+        const lower = s.t(square(16 + p.socketFit, 16 + p.socketFit).translate([x, p.switchY]));
+        const throat = s.t(square(14 + p.socketFit, 14 + p.socketFit).translate([x, p.switchY]));
         base = s.t(base.subtract(solid(lower, plateZ - floor, floor)));
         base = s.t(base.subtract(solid(throat, 15, plateZ)));
       }
       if (p.keychain) {
-        const box = outside.bounds();
-        const x = box.max[0] + 3;
-        const loop = s.t(s.t(C.circle(5, 48)).translate([x, 0]));
-        const hole = s.t(s.t(C.circle(2, 48)).translate([x, 0]));
+        const angle = p.loopAngle * Math.PI / 180;
+        const direction: [number, number] = [Math.cos(angle), Math.sin(angle)];
+        // L'estremo lungo questa direzione appartiene davvero al contorno,
+        // anche quando la forma è asimmetrica o è stata composta a blocchi.
+        let anchor: [number, number] = [0, 0], score = -Infinity;
+        for (const ring of outside.toPolygons()) for (const v of ring) {
+          const dot = v[0] * direction[0] + v[1] * direction[1];
+          if (dot > score) { score = dot; anchor = [v[0], v[1]]; }
+        }
+        const radius = p.loopHole / 2 + 2;
+        const at: [number, number] = [anchor[0] + direction[0] * (radius - 2), anchor[1] + direction[1] * (radius - 2)];
+        const loop = s.t(s.t(C.circle(radius, 48)).translate(at));
+        const hole = s.t(s.t(C.circle(p.loopHole / 2, 48)).translate(at));
         base = s.t(base.add(solid(loop, 3)));
         base = s.t(base.subtract(solid(hole, 4)));
       }
@@ -68,7 +85,7 @@ export function buildKeycap(M: ManifoldToplevel, input: Params, artwork?: SvgArt
     let cap = solid(capOutline, p.topThickness, capZ);
     if (p.compact) {
       const interior = s.t(capOutline.offset(-1.2, 'Round', 2, 64));
-      const switchSpace = s.t(C.union(positions.map((x) => s.t(square(17.8, 17.8).translate([x, 0])))));
+      const switchSpace = s.t(C.union(positions.map((x) => s.t(square(17.8, 17.8).translate([x, p.switchY])))));
       const cavity = s.t(interior.add(switchSpace));
       const skirt = s.t(capOutline.subtract(cavity));
       // Scavo aperto sul fondo, con bordo di 1.2 mm dove c'è spazio.
@@ -76,10 +93,10 @@ export function buildKeycap(M: ManifoldToplevel, input: Params, artwork?: SvgArt
       cap = s.t(cap.add(solid(skirt, 3, capZ - 2.7)));
     }
     for (const x of positions) {
-      const collar = s.t(s.t(C.circle(2.8, 48)).translate([x, 0]));
+      const collar = s.t(s.t(C.circle(2.8, 48)).translate([x, p.switchY]));
       cap = s.t(cap.add(solid(collar, 4.2, capZ - 4)));
       const cross = s.t(square(4.1 + p.stemFit, 1.17 + p.stemFit).add(square(1.17 + p.stemFit, 4.1 + p.stemFit)));
-      const at = s.t(cross.translate([x, 0]));
+      const at = s.t(cross.translate([x, p.switchY]));
       cap = s.t(cap.subtract(solid(at, 3.7, capZ - 4)));
     }
     if (drawing) {

@@ -14,6 +14,7 @@ import { buildKeycap, buildFitTest } from './geometry.ts';
 import { importArtwork, textArtwork } from './artwork.ts';
 import { printPart, printAssembly } from './parts.ts';
 import { DEFAULTS, sanitize, type Params } from './params.ts';
+import { createBlockEditor } from './block-editor.ts';
 
 const TITLE = 'Keycap / Fidget Clicker';
 const shell = appShell({ title: TITLE, intro: 'Crea un clicker per switch MX reali: personalizza base, pulsante e disegno.' });
@@ -34,6 +35,7 @@ shell.stageTools.append(
 );
 const set = <K extends keyof Params>(key: K, value: Params[K]) => {
   if (key === 'product') state.size = value === 'keycap' ? 18 : 35;
+  if (key === 'shape' && value === 'blocks') { state.product = 'clicker'; state.keychain = true; }
   state = sanitize({ ...state, [key]: value }); renderControls(); schedule();
 };
 const hint = el('p', { class: 'bdl-hint' }, 'Nessun disegno caricato.');
@@ -63,17 +65,22 @@ const selectedSTL = button({ label: 'STL selezionato', onClick: () => {
   if (part) download(toSTL([printPart(part)]), `${slug(part.name)}.stl`, 'model/stl');
 } });
 selectedSTL.disabled = true;
+const blockEditor = createBlockEditor(() => state.blockData, (value) => set('blockData', value));
+const sizeControl = track('size', slider({ label: 'Dimensione', value: state.size, min: 18, max: 100, unit: 'mm', hint: 'Con più switch la dimensione minima aumenta per ospitarli.', onInput: (v) => set('size', v) }));
 
 shell.panel.append(
   section('Modello',
     track('compact', toggle({ label: 'Profilo compatto con scavo', value: state.compact, hint: 'Pulsante scavato sotto, bordo che copre lo switch e base più bassa. Disattiva per il profilo originale.', onChange: (v) => set('compact', v) })).root,
     track('product', segmented<Params['product']>({ label: 'Prodotto', value: state.product, options: [{ value: 'clicker', label: 'Fidget clicker' }, { value: 'keycap', label: 'Solo keycap' }], onChange: (v) => set('product', v) })).root,
     el('p', { class: 'bdl-hint' }, 'Per switch MX standard con stelo a croce. Il meccanismo è uno switch reale, da acquistare separatamente.'),
-    track('shape', segmented<Params['shape']>({ label: 'Forma', value: state.shape, options: [{ value: 'square', label: 'Quadra' }, { value: 'round', label: 'Tonda' }, { value: 'hex', label: 'Esagono' }, { value: 'artwork', label: 'Sagoma disegno' }], onChange: (v) => set('shape', v) })).root,
-    track('size', slider({ label: 'Dimensione', value: state.size, min: 18, max: 100, unit: 'mm', hint: 'Con più switch la dimensione minima aumenta per ospitarli.', onInput: (v) => set('size', v) })).root,
+    track('shape', segmented<Params['shape']>({ label: 'Forma', value: state.shape, options: [{ value: 'square', label: 'Quadra' }, { value: 'round', label: 'Tonda' }, { value: 'hex', label: 'Esagono' }, { value: 'artwork', label: 'Sagoma disegno' }, { value: 'blocks', label: 'Blocchi' }], onChange: (v) => set('shape', v) })).root,
+    sizeControl.root,
     track('topThickness', slider({ label: 'Spessore pulsante', value: state.topThickness, min: 1.2, max: 4, step: 0.2, unit: 'mm', onInput: (v) => set('topThickness', v) })).root,
     track('keychain', toggle({ label: 'Occhiello portachiavi', value: state.keychain, onChange: (v) => set('keychain', v) })).root,
+    track('loopAngle', slider({ label: 'Posizione occhiello', value: state.loopAngle, min: -180, max: 180, unit: '°', onInput: (v) => set('loopAngle', v) })).root,
+    track('loopHole', slider({ label: 'Diametro foro occhiello', value: state.loopHole, min: 3, max: 8, step: 0.5, unit: 'mm', onInput: (v) => set('loopHole', v) })).root,
   ),
+  blockEditor.root,
   section('Disegno', el('label', { for: 'keycap-artwork', class: 'bdl-hint' }, 'Carica SVG o immagine'), file, hint,
     el('p', { class: 'bdl-hint' }, 'SVG: contorni e fori. PNG/JPG/WebP: tracciamento a un colore, sfondo bianco o trasparente. Nessun file viene inviato online.'),
     slider({ label: 'Soglia immagine', value: threshold, min: 10, max: 255, onInput: (v) => { threshold = v; if (sourceFile && !/\.svg$/i.test(sourceFile.name)) void loadFile(sourceFile); } }).root,
@@ -88,6 +95,8 @@ shell.panel.append(
     track('decorationDepth', slider({ label: 'Profondità / rilievo', value: state.decorationDepth, min: 0.2, max: 2, step: 0.2, unit: 'mm', onInput: (v) => set('decorationDepth', v) })).root,
   ),
   section('Switch e incastri',
+    track('switchX', slider({ label: 'Posizione X switch', value: state.switchX, min: -60, max: 60, unit: 'mm', onInput: (v) => set('switchX', v) })).root,
+    track('switchY', slider({ label: 'Posizione Y switch', value: state.switchY, min: -60, max: 60, unit: 'mm', hint: 'Con più switch si sposta l’intera fila.', onInput: (v) => set('switchY', v) })).root,
     track('switches', slider({ label: 'Numero switch', value: state.switches, min: 1, max: 3, hint: 'Solo keycap usa sempre un attacco; il clicker può averne fino a tre.', onInput: (v) => set('switches', v) })).root,
     track('spacing', slider({ label: 'Distanza switch', value: state.spacing, min: 19, max: 30, unit: 'mm', onInput: (v) => set('spacing', v) })).root,
     track('stemFit', slider({ label: 'Gioco attacco a croce', value: state.stemFit, min: -0.1, max: 0.35, step: 0.05, unit: 'mm', hint: 'Aumenta se il pulsante è troppo stretto. Prova prima i campioni.', onInput: (v) => set('stemFit', v) })).root,
@@ -154,6 +163,9 @@ function validateArtwork(art: SvgArtwork) {
 // Sincronizza i controlli dopo il caricamento di un progetto senza ricreare il viewer.
 function renderControls() {
   for (const control of controls) control();
+  blockEditor.root.hidden = state.shape !== 'blocks';
+  sizeControl.root.hidden = state.shape === 'blocks';
+  blockEditor.sync();
 }
 function select(id: string) {
   selected = parts.some((part) => part.id === id) ? id : '';
@@ -194,4 +206,5 @@ const exports = [
 ];
 shell.exportBar.append(...exports);
 const schedule = rafThrottle(rebuild);
+renderControls();
 rebuild();

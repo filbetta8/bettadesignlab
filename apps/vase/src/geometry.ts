@@ -1,7 +1,8 @@
 import { Scope, toMeshData, type ManifoldToplevel, type Part, type Vec2 } from '@bdl/geometry';
-import type { VaseParams } from './params.ts';
+import { sanitize, type VaseParams } from './params.ts';
 
 export function buildVase(M: ManifoldToplevel, p: VaseParams): { parts: Part[]; warnings: string[] } {
+  p = sanitize(p);
   const s = new Scope();
   const warnings: string[] = [];
   try {
@@ -14,17 +15,18 @@ export function buildVase(M: ManifoldToplevel, p: VaseParams): { parts: Part[]; 
     const topScale: [number, number] = [scaleTop, scaleTop];
     let body = s.t(outerProfile.extrude(p.height, divisions, p.twist, topScale));
 
-    // La cavità supera leggermente il bordo superiore: il vaso resta aperto e con fondo pieno.
-    const innerProfile = s.t(outerProfile.offset(-p.wall, 'Round', 2, 64));
-    const inner = s.t(
-      innerProfile.extrude(p.height - p.bottomThickness + 0.02, divisions, p.twist, topScale)
-        .translate([0, 0, p.bottomThickness]),
-    );
+    // Stessa origine, torsione e scala del guscio: traslare un'estrusione più corta
+    // disallineava la cavità, perforando le pareti dei profili ruotati.
+    // Lo spessore indicato è il minimo sul lato più stretto del vaso.
+    const inset = p.wall / Math.min(1, scaleTop);
+    const innerProfile = s.t(outerProfile.offset(-inset, 'Round', 2, 64));
+    const cavity = s.t(innerProfile.extrude(p.height, divisions, p.twist, topScale));
+    const inner = s.t(cavity.trimByPlane([0, 0, 1], p.bottomThickness));
     body = s.t(body.subtract(inner));
 
     if (p.drainageHole) {
-      const hole = s.t(Manifold.cylinder(p.bottomThickness + 0.04, p.drainageDiameter / 2, -1, 48)
-        .translate([0, 0, -0.02]));
+      const cylinder = s.t(Manifold.cylinder(p.bottomThickness + 0.04, p.drainageDiameter / 2, -1, 48));
+      const hole = s.t(cylinder.translate([0, 0, -0.02]));
       body = s.t(body.subtract(hole));
       warnings.push('Foro di drenaggio attivo: il modello non trattiene acqua.');
     }

@@ -34,23 +34,29 @@ export const DEFAULTS: VaseParams = {
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
 export function sanitize(p: VaseParams): VaseParams {
-  const bottomDiameter = clamp(p.bottomDiameter, 50, 220);
-  const topDiameter = clamp(p.topDiameter, 50, 240);
-  const wall = clamp(p.wall, 1.2, 5);
-  const bottomThickness = clamp(p.bottomThickness, 1.6, 10);
-  const drainageDiameter = clamp(p.drainageDiameter, 3, Math.max(3, bottomDiameter - 2 * wall - 12));
+  const number = (key: keyof VaseParams) => typeof p[key] === 'number' && Number.isFinite(p[key]) ? p[key] as number : DEFAULTS[key] as number;
+  const bottomDiameter = clamp(number('bottomDiameter'), 50, 220);
+  const topDiameter = clamp(number('topDiameter'), 50, 240);
+  const wall = clamp(number('wall'), 1.2, 5);
+  const bottomThickness = clamp(number('bottomThickness'), 1.6, 10);
+  const sides = Math.round(clamp(number('sides'), 3, 16));
+  const waveDepth = clamp(number('waveDepth'), 1, Math.min(14, bottomDiameter / 5));
+  const inset = wall / Math.min(1, topDiameter / bottomDiameter);
+  const inradius = bottomDiameter / 2 * (p.profile === 'faceted' ? Math.cos(Math.PI / sides) : 1) - (p.profile === 'wavy' ? waveDepth : 0);
+  const drainageDiameter = clamp(number('drainageDiameter'), 3, Math.max(3, 2 * (inradius - inset) - 2));
   return {
     ...p,
     topDiameter,
     bottomDiameter,
-    height: clamp(p.height, 60, 300),
+    height: clamp(number('height'), 60, 300),
     wall,
     bottomThickness,
     profile: p.profile === 'faceted' || p.profile === 'wavy' ? p.profile : 'smooth',
-    sides: Math.round(clamp(p.sides, 3, 16)),
-    waveDepth: clamp(p.waveDepth, 1, Math.min(14, bottomDiameter / 5)),
-    twist: clamp(p.twist, -180, 180),
-    drainageHole: Boolean(p.drainageHole),
+    sides,
+    waveDepth,
+    twist: clamp(number('twist'), -180, 180),
+    drainageHole: p.drainageHole === true,
+    color: typeof p.color === 'string' && /^#[0-9a-f]{6}$/i.test(p.color) ? p.color : DEFAULTS.color,
     drainageDiameter,
   };
 }

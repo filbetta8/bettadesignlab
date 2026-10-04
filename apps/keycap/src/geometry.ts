@@ -1,12 +1,13 @@
 import { Scope, outline, toMeshData, type Part, type ManifoldToplevel, type CrossSection, type Manifold } from '@bdl/geometry';
 import type { SvgArtwork } from '../../coaster/src/svg.ts';
-import { sanitize, type Params } from './params.ts';
+import { sanitize, readKeyLabels, type Params } from './params.ts';
 import { readBlocks, blockOutline } from './blocks.ts';
 
 /** Montaggio MX standard: piano di appoggio 10.3 mm, piastra 1.5 mm.
  * Il fondo lascia spazio al corpo inferiore e ai pin, senza PCB o cablaggio. */
-export function buildKeycap(M: ManifoldToplevel, input: Params, artwork?: SvgArtwork): { parts: Part[]; warnings: string[] } {
+export function buildKeycap(M: ManifoldToplevel, input: Params, artwork?: SvgArtwork, keyArtwork: readonly (SvgArtwork | undefined)[] = []): { parts: Part[]; warnings: string[] } {
   const p = sanitize(input), s = new Scope();
+  if (p.shape === 'keys') return buildTextKeys(M, p, keyArtwork);
   const parts: Part[] = [], warnings: string[] = [];
   const plateZ = p.compact ? 9.3 : 10.3, capZ = plateZ + 7;
   const floor = p.compact ? 1 : 1.8;
@@ -135,5 +136,33 @@ export function buildFitTest(M: ManifoldToplevel, fit: number, color: string): P
       const tile = s.t(s.t(block.subtract(hole)).translate([i * 12, 0, 0]));
       return { id: `fit-${i}`, name: `Gioco ${value.toFixed(2)} mm`, color, mesh: toMeshData(tile) };
     });
+  } finally { s.free(); }
+}
+
+/** Un pulsante indipendente per ogni etichetta, su una base continua. */
+function buildTextKeys(M: ManifoldToplevel, p: Params, artwork: readonly (SvgArtwork | undefined)[]) {
+  const labels = readKeyLabels(p.keyLabels), s = new Scope();
+  const parts: Part[] = [], bases: Manifold[] = [];
+  try {
+    labels.forEach((label, i) => {
+      const offset = (i - (labels.length - 1) / 2) * (p.size + 3);
+      const x = p.keyLayout === 'horizontal' ? offset : 0;
+      const y = p.keyLayout === 'vertical' ? -offset : 0;
+      const single = buildKeycap(M, { ...p, shape: 'square', switches: 1, switchX: 0, switchY: 0, keychain: p.keychain && i === labels.length - 1 }, artwork[i]);
+      for (const part of single.parts) {
+        const positions = new Float32Array(part.mesh.positions);
+        for (let n = 0; n < positions.length; n += 3) { positions[n] += x; positions[n + 1] += y; }
+        if (part.id === 'base') {
+          const mesh = new M.Mesh({ numProp: 3, vertProperties: positions, triVerts: part.mesh.indices }); mesh.merge();
+          bases.push(s.t(new M.Manifold(mesh)));
+        } else parts.push({ ...part, id: `${part.id}-${i + 1}`, name: `${part.id === 'cap' ? 'Tasto' : 'Testo'} ${i + 1} · ${label || 'vuoto'}${part.id === 'cap' ? '' : ' · ' + part.name}`, mesh: { positions, indices: part.mesh.indices } });
+      }
+    });
+    const base = s.t(M.Manifold.union(bases));
+    if (base.status() !== 'NoError') throw new Error('Base dei tasti non valida.');
+    const components = base.decompose(); components.forEach((m) => s.t(m));
+    if (components.length !== 1) throw new Error('La base dei tasti deve essere continua.');
+    parts.unshift({ id: 'base', name: 'Base comune', color: p.baseColor, mesh: toMeshData(base) });
+    return { parts, warnings: [] as string[] };
   } finally { s.free(); }
 }

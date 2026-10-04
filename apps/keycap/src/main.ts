@@ -13,7 +13,8 @@ import type { SvgArtwork } from '../../coaster/src/svg.ts';
 import { buildKeycap, buildFitTest } from './geometry.ts';
 import { importArtwork, textArtwork } from './artwork.ts';
 import { printPart, printAssembly } from './parts.ts';
-import { DEFAULTS, sanitize, type Params } from './params.ts';
+import { DEFAULTS, sanitize, readKeyLabels, type Params } from './params.ts';
+import { createKeyEditor } from './key-editor.ts';
 import { createBlockEditor } from './block-editor.ts';
 
 const TITLE = 'Keycap / Fidget Clicker';
@@ -36,6 +37,7 @@ shell.stageTools.append(
 const set = <K extends keyof Params>(key: K, value: Params[K]) => {
   if (key === 'product') state.size = value === 'keycap' ? 18 : 35;
   if (key === 'shape' && value === 'blocks') { state.product = 'clicker'; state.keychain = true; }
+  if (key === 'shape' && value === 'keys') { state.product = 'clicker'; state.size = 22; state.keychain = true; }
   state = sanitize({ ...state, [key]: value }); renderControls(); schedule();
 };
 const hint = el('p', { class: 'bdl-hint' }, 'Nessun disegno caricato.');
@@ -66,6 +68,7 @@ const selectedSTL = button({ label: 'STL selezionato', onClick: () => {
 } });
 selectedSTL.disabled = true;
 const blockEditor = createBlockEditor(() => state.blockData, (value) => set('blockData', value));
+const keyEditor = createKeyEditor(() => state, (value) => set('keyLabels', value), (value) => set('keyLayout', value));
 const sizeControl = track('size', slider({ label: 'Dimensione', value: state.size, min: 18, max: 100, unit: 'mm', hint: 'Con più switch la dimensione minima aumenta per ospitarli.', onInput: (v) => set('size', v) }));
 
 shell.panel.append(
@@ -73,15 +76,15 @@ shell.panel.append(
     track('compact', toggle({ label: 'Profilo compatto con scavo', value: state.compact, hint: 'Pulsante scavato sotto, bordo che copre lo switch e base più bassa. Disattiva per il profilo originale.', onChange: (v) => set('compact', v) })).root,
     track('product', segmented<Params['product']>({ label: 'Prodotto', value: state.product, options: [{ value: 'clicker', label: 'Fidget clicker' }, { value: 'keycap', label: 'Solo keycap' }], onChange: (v) => set('product', v) })).root,
     el('p', { class: 'bdl-hint' }, 'Per switch MX standard con stelo a croce. Il meccanismo è uno switch reale, da acquistare separatamente.'),
-    track('shape', segmented<Params['shape']>({ label: 'Forma', value: state.shape, options: [{ value: 'square', label: 'Quadra' }, { value: 'round', label: 'Tonda' }, { value: 'hex', label: 'Esagono' }, { value: 'artwork', label: 'Sagoma disegno' }, { value: 'blocks', label: 'Blocchi' }], onChange: (v) => set('shape', v) })).root,
+    track('shape', segmented<Params['shape']>({ label: 'Forma', value: state.shape, options: [{ value: 'square', label: 'Quadra' }, { value: 'round', label: 'Tonda' }, { value: 'hex', label: 'Esagono' }, { value: 'artwork', label: 'Sagoma disegno' }, { value: 'blocks', label: 'Forme composte' }, { value: 'keys', label: 'Tasti con testo' }], onChange: (v) => set('shape', v) })).root,
     sizeControl.root,
     track('topThickness', slider({ label: 'Spessore pulsante', value: state.topThickness, min: 1.2, max: 4, step: 0.2, unit: 'mm', onInput: (v) => set('topThickness', v) })).root,
     track('keychain', toggle({ label: 'Occhiello portachiavi', value: state.keychain, onChange: (v) => set('keychain', v) })).root,
     track('loopAngle', slider({ label: 'Posizione occhiello', value: state.loopAngle, min: -180, max: 180, unit: '°', onInput: (v) => set('loopAngle', v) })).root,
     track('loopHole', slider({ label: 'Diametro foro occhiello', value: state.loopHole, min: 3, max: 8, step: 0.5, unit: 'mm', onInput: (v) => set('loopHole', v) })).root,
   ),
-  blockEditor.root,
-  section('Disegno', el('label', { for: 'keycap-artwork', class: 'bdl-hint' }, 'Carica SVG o immagine'), file, hint,
+  blockEditor.root, keyEditor.root,
+  section('Disegno', el('div', { id: 'keycap-general-art' }, el('label', { for: 'keycap-artwork', class: 'bdl-hint' }, 'Carica SVG o immagine'), file, hint,
     el('p', { class: 'bdl-hint' }, 'SVG: contorni e fori. PNG/JPG/WebP: tracciamento a un colore, sfondo bianco o trasparente. Nessun file viene inviato online.'),
     slider({ label: 'Soglia immagine', value: threshold, min: 10, max: 255, onInput: (v) => { threshold = v; if (sourceFile && !/\.svg$/i.test(sourceFile.name)) void loadFile(sourceFile); } }).root,
     el('label', { for: 'keycap-text', class: 'bdl-hint' }, 'Oppure scrivi un testo'), inputText,
@@ -90,6 +93,7 @@ shell.panel.append(
       catch (error) { toast(error instanceof Error ? error.message : 'Testo non valido'); }
     } }),
     button({ label: 'Rimuovi disegno', onClick: () => { ++generation; artwork = undefined; sourceFile = undefined; hint.textContent = 'Nessun disegno caricato.'; if (state.shape === 'artwork') state.shape = 'square'; renderControls(); rebuild(); } }),
+    ),
     track('designScale', slider({ label: 'Dimensione disegno', value: state.designScale, min: 10, max: 100, unit: '%', onInput: (v) => set('designScale', v) })).root,
     track('mode', segmented<Params['mode']>({ label: 'Tecnica', value: state.mode, options: [{ value: 'inlay', label: 'Intarsio' }, { value: 'relief', label: 'Rilievo' }, { value: 'engrave', label: 'Incisione' }], onChange: (v) => set('mode', v) })).root,
     track('decorationDepth', slider({ label: 'Profondità / rilievo', value: state.decorationDepth, min: 0.2, max: 2, step: 0.2, unit: 'mm', onInput: (v) => set('decorationDepth', v) })).root,
@@ -132,7 +136,7 @@ shell.panel.append(
           if (art) validateArtwork(art);
           state = sanitize(data.params); artwork = art; sourceFile = undefined; ++generation;
           Object.keys(colors).forEach((key) => delete colors[key]);
-          if (data.colors && typeof data.colors === 'object') for (const [key, color] of Object.entries(data.colors)) if (/^(base|cap|art-\d+)$/.test(key) && /^#[a-f\d]{6}$/i.test(String(color))) colors[key] = String(color);
+          if (data.colors && typeof data.colors === 'object') for (const [key, color] of Object.entries(data.colors)) if (/^(base|cap(?:-\d+)?|art-\d+(?:-\d+)?)$/.test(key) && /^#[a-f\d]{6}$/i.test(String(color))) colors[key] = String(color);
           hint.textContent = artwork?.name ?? 'Nessun disegno caricato.';
           renderControls(); rebuild();
         } catch (error) { toast(error instanceof Error ? error.message : 'Progetto non valido'); }
@@ -165,10 +169,17 @@ function renderControls() {
   for (const control of controls) control();
   blockEditor.root.hidden = state.shape !== 'blocks';
   sizeControl.root.hidden = state.shape === 'blocks';
-  blockEditor.sync();
+  const generalArt = document.getElementById('keycap-general-art'); if (generalArt) generalArt.hidden = state.shape === 'keys';
+  blockEditor.sync(); keyEditor.root.hidden = state.shape !== 'keys'; keyEditor.sync();
+  for (const root of shell.panel.querySelectorAll<HTMLElement>('.bdl-row')) {
+    const label = root.textContent ?? '';
+    if (/^(Posizione [XY] switch|Numero switch|Distanza switch)/.test(label)) root.hidden = state.shape === 'keys';
+  }
 }
 function select(id: string) {
   selected = parts.some((part) => part.id === id) ? id : '';
+  const key = /^(?:cap|art-\d+)-(\d+)$/.exec(selected);
+  if (state.shape === 'keys' && key) keyEditor.select(Number(key[1]) - 1);
   viewer.selectPart(selected || null); selectedSTL.disabled = !selected;
   const part = parts.find((item) => item.id === selected); if (part) partColor.set(part.color);
   for (const node of list.querySelectorAll('button')) node.setAttribute('aria-pressed', String(node.dataset.part === selected));
@@ -180,11 +191,19 @@ function show() {
 shell.panel.inert = true;
 const M = await loadManifold(wasmUrl);
 shell.panel.inert = false;
+const textCache = new Map<string, SvgArtwork>();
 function rebuild() {
   try {
     state = sanitize(state);
-    const result = buildKeycap(M, state, artwork);
-    if (state.mode === 'relief' && artwork) result.warnings.push('Rilievo: valuta i supporti nel programma di stampa. Per stampare a faccia in giù senza dislivelli scegli intarsio.');
+    const labels = state.shape === 'keys' ? readKeyLabels(state.keyLabels) : [];
+    const lettering = labels.map((label) => {
+      if (!label.trim()) return undefined;
+      let art = textCache.get(label);
+      if (!art) { art = textArtwork(label); if (textCache.size > 100) textCache.clear(); textCache.set(label, art); }
+      return art;
+    });
+    const result = buildKeycap(M, state, artwork, lettering);
+    if (state.mode === 'relief' && (artwork || lettering.some(Boolean))) result.warnings.push('Rilievo: valuta i supporti nel programma di stampa. Per stampare a faccia in giù senza dislivelli scegli intarsio.');
     parts = result.parts.map((part) => ({ ...part, color: colors[part.id] ?? part.color }));
     list.replaceChildren(...parts.map((part) => {
       const b = button({ label: part.name, size: 'sm', onClick: () => select(part.id) }); b.dataset.part = part.id; return b;

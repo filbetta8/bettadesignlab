@@ -4,7 +4,8 @@ import { DEFAULT_BLOCKS, readBlocks } from './blocks.ts';
 export interface Params {
   [key: string]: string | number | boolean;
   product: 'clicker' | 'keycap';
-  shape: 'square' | 'round' | 'hex' | 'artwork' | 'blocks';
+  shape: 'square' | 'round' | 'hex' | 'artwork' | 'blocks' | 'keys';
+  keyLabels: string; keyLayout: 'horizontal' | 'vertical';
   blockData: string; switchX: number; switchY: number; loopAngle: number; loopHole: number;
   size: number; topThickness: number; decorationDepth: number; designScale: number;
   mode: 'inlay' | 'relief' | 'engrave';
@@ -18,12 +19,13 @@ export const DEFAULTS: Params = {
   decorationDepth: 0.8, designScale: 75, mode: 'inlay', gap: 0.35,
   stemFit: 0.1, socketFit: 0.15, rim: 2.4, switches: 1, spacing: 20,
   keychain: false, compact: true, baseColor: '#25355e', capColor: '#f2f0eb', artColor: '#d4a429',
+  keyLabels: '["F","I","L","I"]', keyLayout: 'horizontal',
   blockData: JSON.stringify(DEFAULT_BLOCKS), switchX: 0, switchY: 0, loopAngle: 0, loopHole: 4,
 };
 export function sanitize(input: Params): Params {
   const p = { ...DEFAULTS };
   for (const key of ['product', 'shape', 'mode'] as const) {
-    const choices = key === 'product' ? ['clicker', 'keycap'] : key === 'shape' ? ['square', 'round', 'hex', 'artwork', 'blocks'] : ['inlay', 'relief', 'engrave'];
+    const choices = key === 'product' ? ['clicker', 'keycap'] : key === 'shape' ? ['square', 'round', 'hex', 'artwork', 'blocks', 'keys'] : ['inlay', 'relief', 'engrave'];
     if (choices.includes(String(input[key]))) (p[key] as string) = input[key];
   }
   const limits: Record<string, [number, number]> = {
@@ -35,8 +37,11 @@ export function sanitize(input: Params): Params {
   for (const [key, [lo, hi]] of Object.entries(limits)) {
     const v = Number(input[key]); p[key] = Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : DEFAULTS[key];
   }
+  p.keyLabels = JSON.stringify(readKeyLabels(input.keyLabels));
+  p.keyLayout = input.keyLayout === 'vertical' ? 'vertical' : 'horizontal';
+  if (p.shape === 'keys') { p.product = 'clicker'; p.size = Math.min(40, Math.max(20, p.size)); }
   p.switches = p.product === 'keycap' ? 1 : Math.round(p.switches);
-  if (p.product === 'clicker') p.size = Math.max(p.size, 20 + (p.switches - 1) * p.spacing);
+  if (p.product === 'clicker' && p.shape !== 'keys') p.size = Math.max(p.size, 20 + (p.switches - 1) * p.spacing);
   p.decorationDepth = Math.min(p.decorationDepth, p.topThickness - 0.6);
   p.keychain = input.keychain === true;
   p.blockData = JSON.stringify(readBlocks(typeof input.blockData === 'string' && input.blockData.length < 10000 ? input.blockData : DEFAULTS.blockData));
@@ -45,4 +50,12 @@ export function sanitize(input: Params): Params {
     if (FILAMENTS.some((f) => f.hex === input[key])) p[key] = input[key];
   }
   return p;
+}
+
+export function readKeyLabels(raw: unknown): string[] {
+  try {
+    const items = JSON.parse(typeof raw === 'string' && raw.length < 2000 ? raw : 'null');
+    if (!Array.isArray(items) || !items.length || items.length > 8 || items.some((v) => typeof v !== 'string')) return ['F', 'I', 'L', 'I'];
+    return items.map((v: string) => Array.from(v).slice(0, 12).join(''));
+  } catch { return ['F', 'I', 'L', 'I']; }
 }

@@ -220,9 +220,10 @@ try {
 // Clicker: i pezzi restano chiusi, sede e croce aperte, corsa libera di 4 mm.
 for (const shape of ['square', 'round', 'hex', 'artwork'] as const)
 for (const mode of ['inlay', 'relief', 'engrave'] as const)
-for (const switches of [1, 2, 3]) {
+for (const switches of [1, 2, 3])
+for (const compact of [false, true]) {
   runs++;
-  const p = sanitizeKeycap({ ...KEYCAP_DEFAULTS, shape, mode, switches, size: 18, keychain: true });
+  const p = sanitizeKeycap({ ...KEYCAP_DEFAULTS, shape, mode, switches, compact, size: 18, keychain: true });
   // Un anello ha il centro vuoto: il nucleo strutturale deve comunque reggere il socket.
   const res = buildKeycap(M, p, artwork);
   const solids = res.parts.map((part) => {
@@ -241,12 +242,12 @@ for (const switches of [1, 2, 3]) {
     for (let i = 0; i < switches; i++) {
       const x = (i - (switches - 1) / 2) * p.spacing;
       const stemProbe = M.Manifold.cylinder(3.5, 0.4, -1, 12);
-      const stemAt = stemProbe.translate([x, 0, 13.4]);
+      const stemAt = stemProbe.translate([x, 0, (compact ? 12.4 : 13.4)]);
       const stemHit = cap.intersect(stemAt);
       if (stemHit.volume() > 0.001) fail('clicker: socket MX chiuso');
       stemHit.delete(); stemAt.delete(); stemProbe.delete();
-      const seatProbe = M.Manifold.cylinder(9.8, 1, -1, 12);
-      const seatAt = seatProbe.translate([x, 0, 1.9]);
+      const seatProbe = M.Manifold.cylinder(8, 1, -1, 12);
+      const seatAt = seatProbe.translate([x, 0, compact ? 1.1 : 1.9]);
       const seatHit = base.intersect(seatAt);
       if (seatHit.volume() > 0.001) fail('clicker: sede switch chiusa');
       seatHit.delete(); seatAt.delete(); seatProbe.delete();

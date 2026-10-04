@@ -10,10 +10,12 @@ import type { Part } from '@bdl/geometry';
 export interface ViewerOptions {
   /** Lato del piatto in mm (default 256, Bambu X1/P1/A1). */
   plateSize?: number;
+  onSelectPart?: (id: string | null) => void;
 }
 
 export interface Viewer {
   setParts(parts: readonly Part[], opts?: { refit?: boolean }): void;
+  selectPart(id: string | null): void;
   fit(): void;
   setView(view: 'iso' | 'top' | 'front'): void;
   /** PNG dell'anteprima corrente (per miniature / condivisione). */
@@ -82,6 +84,30 @@ export function createViewer(host: HTMLElement, opts: ViewerOptions = {}): Viewe
   const model = new THREE.Group();
   scene.add(model);
   let first = true;
+
+  let selected: string | null = null;
+  const highlight = () => {
+    for (const child of model.children) {
+      const mesh = child as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+      mesh.material.emissive.set(mesh.name === selected ? '#ffffff' : '#000000');
+      mesh.material.emissiveIntensity = mesh.name === selected ? 0.25 : 0;
+    }
+  };
+  let pointerStart: [number, number] | null = null;
+  const onDown = (event: PointerEvent) => { if (event.button === 0) pointerStart = [event.clientX, event.clientY]; };
+  const onUp = (event: PointerEvent) => {
+    const start = pointerStart; pointerStart = null;
+    if (!opts.onSelectPart || !start || Math.hypot(event.clientX - start[0], event.clientY - start[1]) > 5) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(2 * (event.clientX - rect.left) / rect.width - 1, 1 - 2 * (event.clientY - rect.top) / rect.height), camera);
+    const hit = ray.intersectObjects(model.children, false)[0];
+    selected = hit ? hit.object.name : null;
+    highlight();
+    opts.onSelectPart(selected);
+  };
+  renderer.domElement.addEventListener('pointerdown', onDown);
+  renderer.domElement.addEventListener('pointerup', onUp);
 
   const resize = () => {
     const w = host.clientWidth, h = host.clientHeight;
@@ -153,8 +179,10 @@ export function createViewer(host: HTMLElement, opts: ViewerOptions = {}): Viewe
         mesh.name = p.id;
         model.add(mesh);
       }
+      highlight();
       if (first || o.refit) { place(views.iso.clone()); first = false; }
     },
+    selectPart(id) { selected = id; highlight(); },
     fit() { place(camera.position.clone().sub(controls.target)); },
     setView(v) { place(views[v].clone()); },
     snapshot() { renderer.render(scene, camera); return renderer.domElement.toDataURL('image/png'); },
@@ -163,6 +191,8 @@ export function createViewer(host: HTMLElement, opts: ViewerOptions = {}): Viewe
       ro.disconnect();
       themeObs.disconnect();
       mq.removeEventListener('change', applyTheme);
+      renderer.domElement.removeEventListener('pointerdown', onDown);
+      renderer.domElement.removeEventListener('pointerup', onUp);
       controls.dispose();
       renderer.dispose();
       renderer.domElement.remove();

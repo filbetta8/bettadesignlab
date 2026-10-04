@@ -7,6 +7,7 @@ export interface CoasterParams {
   [key: string]: string | number | boolean;
   svgUse: 'none' | 'decoration' | 'shape';
   svgScale: number;
+  svgClearance: number;
   shape: OutlineShape;
   size: number;
   cornerRadius: number;
@@ -28,6 +29,7 @@ export interface CoasterParams {
 export const DEFAULTS: CoasterParams = {
   svgUse: 'none',
   svgScale: 70,
+  svgClearance: 0,
   shape: 'round',
   size: 100,
   cornerRadius: 10,
@@ -57,6 +59,7 @@ export function sanitize(p: CoasterParams): CoasterParams {
     shape: SHAPES.includes(p.shape) ? p.shape : DEFAULTS.shape,
     pattern: PATTERNS.includes(p.pattern) ? p.pattern : DEFAULTS.pattern,
     svgUse: p.svgUse === 'decoration' || p.svgUse === 'shape' ? p.svgUse : 'none',
+    svgClearance: Number.isFinite(p.svgClearance) ? clamp(p.svgClearance, 0, 0.5) : 0,
     svgScale: Number.isFinite(p.svgScale) ? clamp(p.svgScale, 10, 100) : DEFAULTS.svgScale,
     patternMode: p.patternMode === 'relief' || p.patternMode === 'engrave' ? p.patternMode : 'inlay',
     size: clamp(p.size, 60, 140),

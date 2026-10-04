@@ -75,7 +75,9 @@ export function buildCoaster(M: ManifoldToplevel, p: CoasterParams, artwork?: Sv
           const depth = Math.min(p.patternHeight, maxDepth);
           if (depth < p.patternHeight) warnings.push(`Intarsio ridotto a ${depth.toFixed(1)} mm per lasciare un fondo solido.`);
           if (depth > 0.15) {
-            const cutter = s.t(s.t(pat2d.extrude(depth + 0.02)).translate([0, 0, p.baseHeight - depth]));
+            const pocket = p.svgUse === 'decoration' && p.patternMode === 'inlay' && p.svgClearance > 0
+              ? s.t(s.t(pat2d.offset(p.svgClearance, 'Round', 2, 32)).intersect(field)) : pat2d;
+            const cutter = s.t(s.t(pocket.extrude(depth + 0.02)).translate([0, 0, p.baseHeight - depth]));
             base = s.t(base.subtract(cutter));
             if (p.patternMode === 'inlay') {
               const fill = s.t(s.t(pat2d.extrude(depth)).translate([0, 0, p.baseHeight - depth]));
@@ -89,7 +91,17 @@ export function buildCoaster(M: ManifoldToplevel, p: CoasterParams, artwork?: Sv
     }
 
     parts.push({ id: 'base', name: 'Base', color: p.baseColor, mesh: toMeshData(base) });
-    if (patternPart) parts.push(patternPart);
+    if (patternPart && p.svgUse === 'decoration') {
+      const mesh = new M.Mesh({ numProp: 3, vertProperties: patternPart.mesh.positions, triVerts: patternPart.mesh.indices });
+      mesh.merge();
+      const solid = s.t(new Manifold(mesh));
+      const elements = solid.decompose().map((element) => s.t(element));
+      elements.sort((a, b) => {
+        const aa = a.boundingBox(), bb = b.boundingBox();
+        return aa.min[0] - bb.min[0] || aa.min[1] - bb.min[1];
+      });
+      elements.forEach((element, i) => parts.push({ id: `svg-${i + 1}`, name: `SVG ${i + 1}`, color: p.patternColor, mesh: toMeshData(element) }));
+    } else if (patternPart) parts.push(patternPart);
     return { parts, warnings };
   } finally {
     s.free();

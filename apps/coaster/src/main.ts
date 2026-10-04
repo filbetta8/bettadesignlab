@@ -2,6 +2,8 @@ import '@bdl/ui-kit/style.css';
 import wasmUrl from 'manifold-3d/manifold.wasm?url';
 import { loadManifold, bounds, type Part } from '@bdl/geometry';
 import { createViewer } from '@bdl/viewer';
+import { zipSync } from 'fflate';
+import { groundPart, separateParts } from './parts.ts';
 import { toSTL, to3MF, download, slug } from '@bdl/export';
 import {
   appShell, section, slider, segmented, toggle, colorPicker, button, iconButton, toast,
@@ -20,7 +22,9 @@ let parts: Part[] = [];
 let artwork: SvgArtwork | undefined;
 state.svgUse = 'none';
 
-const viewer = createViewer(shell.stage);
+let selectedPart: string | null = null;
+let separated = false;
+const viewer = createViewer(shell.stage, { onSelectPart: (id) => { selectedPart = id; refreshPartList(); } });
 shell.stageTools.append(
   iconButton({ label: 'Vista 3D', icon: ICONS.iso, onClick: () => viewer.setView('iso') }),
   iconButton({ label: 'Vista dall’alto', icon: ICONS.top, onClick: () => viewer.setView('top') }),
@@ -41,6 +45,7 @@ const set = <K extends keyof CoasterParams>(k: K, v: CoasterParams[K]) => {
   state = sanitize({ ...state, [k]: v });
   syncSvgControls();
   exportButtons.forEach((b) => { b.disabled = true; });
+  selectedExport.disabled = separateExport.disabled = true;
   schedule();
 };
 
@@ -95,7 +100,9 @@ const svgMode = segmented<CoasterParams['svgUse']>({
   },
 });
 const svgScaleRow = slider({ label: 'Dimensione SVG', min: 10, max: 100, step: 1, value: state.svgScale, unit: '%', onInput: (v) => set('svgScale', v) });
+const clearanceRow = slider({ label: 'Gioco intarsio', min: 0, max: 0.5, step: 0.05, value: state.svgClearance, unit: 'mm', hint: '0 per stampa multicolore; aumenta il gioco per inserire pezzi stampati separatamente.', onInput: (v) => set('svgClearance', v) });
 function syncSvgControls() {
+  clearanceRow.root.hidden = state.svgUse !== 'decoration' || state.patternMode !== 'inlay';
   svgScaleRow.root.hidden = state.svgUse !== 'decoration';
   shapeSeg.root.hidden = state.svgUse === 'shape';
   cornerRow.root.hidden = state.svgUse === 'shape' || state.shape !== 'square';
@@ -111,6 +118,7 @@ svgInput.addEventListener('change', async () => {
     if (file.size > 500_000) throw new Error('SVG troppo grande: massimo 500 KB.');
     const parsed = parseSvg(await file.text(), file.name);
     if (version !== importVersion) return;
+    selectedPart = null;
     artwork = parsed;
     svgName.textContent = file.name;
     svgMode.set('decoration');
@@ -125,6 +133,36 @@ svgInput.addEventListener('change', async () => {
 const corkDepthRow = slider({ label: 'Profondità incavo', min: 0.5, max: 3, step: 0.1, value: state.corkDepth, unit: 'mm', onInput: (v) => set('corkDepth', v) });
 const showCork = () => { corkDepthRow.root.hidden = !state.corkRecess; };
 
+const partList = el('div', { class: 'bdl-row', role: 'group', 'aria-label': 'Pezzi del modello' });
+const selectionLabel = el('p', { class: 'bdl-hint', role: 'status' }, 'Clicca un pezzo nell’anteprima oppure nell’elenco.');
+const selectedExport = button({ label: 'STL selezionato', size: 'sm', onClick: () => {
+  const part = parts.find((part) => part.id === selectedPart);
+  if (part) download(toSTL([groundPart(part)]), `${fileBase()}-${slug(part.name)}.stl`, 'model/stl');
+} });
+const separateExport = button({ label: 'Tutti gli STL separati (ZIP)', size: 'sm', onClick: () => {
+  const files: Record<string, Uint8Array> = {};
+  parts.forEach((part) => { files[`${slug(part.name)}-${part.id}.stl`] = toSTL([groundPart(part)]); });
+  download(zipSync(files), `${fileBase()}-pezzi.zip`, 'application/zip');
+} });
+const layoutSeg = segmented({ label: 'Vista pezzi', value: 'assembled', options: [
+  { value: 'assembled', label: 'Assemblata' }, { value: 'separated', label: 'Separata' },
+], onChange: (value) => { separated = value === 'separated'; updatePreview(true); } });
+function updatePreview(refit = false) {
+  viewer.setParts(separated ? separateParts(parts) : parts, { refit });
+  viewer.selectPart(selectedPart);
+}
+function refreshPartList() {
+  if (!parts.some((part) => part.id === selectedPart)) selectedPart = null;
+  partList.replaceChildren(...parts.map((part) => {
+    const control = button({ label: part.name, size: 'sm', onClick: () => { selectedPart = part.id; viewer.selectPart(part.id); refreshPartList(); } });
+    control.setAttribute('aria-pressed', String(part.id === selectedPart));
+    return control;
+  }));
+  selectionLabel.textContent = selectedPart ? `Selezionato: ${parts.find((part) => part.id === selectedPart)!.name}` : 'Clicca un pezzo nell’anteprima oppure nell’elenco.';
+  selectedExport.disabled = !selectedPart;
+  separateExport.disabled = !parts.length;
+}
+
 shell.panel.append(
   section('Forma',
     shapeSeg.root,
@@ -134,7 +172,7 @@ shell.panel.append(
   ),
   section('SVG personale',
     el('div', { class: 'bdl-row' }, el('label', { for: 'svg-file' }, 'Carica SVG'), svgInput),
-    svgName, svgMode.root, svgScaleRow.root,
+    svgName, svgMode.root, svgScaleRow.root, clearanceRow.root,
     el('p', { class: 'bdl-hint' }, 'Decorazione: aree piene e linee, con lo spessore originale. Sagoma: solo aree piene; converti i testi in tracciati. Il file resta sul tuo dispositivo e va ricaricato dopo un aggiornamento della pagina; non è incluso nei link. La sagoma richiede una forma connessa.'),
     button({ label: 'Rimuovi SVG', variant: 'ghost', size: 'sm', onClick: () => {
       importVersion++; artwork = undefined; svgName.textContent = 'Nessun SVG caricato.'; svgMode.set('none'); set('svgUse', 'none');
@@ -148,6 +186,8 @@ shell.panel.append(
     el('div', { class: 'bdl-row' }, el('label', { for: 'pattern' }, 'Disegno'), patternSelect),
     ...patternRows,
   ),
+  section('Pezzi', layoutSeg.root, selectionLabel, partList, selectedExport, separateExport,
+    el('p', { class: 'bdl-hint' }, 'Gli elementi SVG connessi diventano pezzi distinti. Le linee o forme che si toccano sono unite. L’incisione crea cavità, senza inserti separabili. Gli STL separati poggiano sul piano; il 3MF segue la vista scelta.')),
   section('Colori',
     colorPicker({ label: 'Base', value: state.baseColor, onChange: (v) => set('baseColor', v) }).root,
     colorPicker({ label: 'Motivo', value: state.patternColor, onChange: (v) => set('patternColor', v) }).root,
@@ -164,12 +204,12 @@ shell.panel.append(
   ),
   panelFooter(),
 );
-showCorner(); showPatternRows(); showCork(); syncSvgControls();
+showCorner(); showPatternRows(); showCork(); syncSvgControls(); refreshPartList();
 
 const fileBase = () => slug(`sottobicchiere-${state.shape}-${Math.round(state.size)}mm`);
 const exportButtons = [
   button({ label: 'STL', icon: ICONS.download, onClick: () => { download(toSTL(parts), `${fileBase()}.stl`, 'model/stl'); toast('STL scaricato (pezzi uniti, un colore)'); } }),
-  button({ label: '3MF multicolore', icon: ICONS.download, variant: 'primary', onClick: () => { download(to3MF(parts, { title: fileBase() }), `${fileBase()}.3mf`, 'model/3mf'); toast('3MF scaricato: assegna un filamento a ogni pezzo nello slicer'); } }),
+  button({ label: '3MF multicolore', icon: ICONS.download, variant: 'primary', onClick: () => { download(to3MF(separated ? separateParts(parts) : parts, { title: fileBase() }), `${fileBase()}.3mf`, 'model/3mf'); toast('3MF scaricato: assegna un filamento a ogni pezzo nello slicer'); } }),
 ];
 exportButtons.forEach((b) => { b.disabled = true; });
 shell.exportBar.append(...exportButtons);
@@ -194,7 +234,8 @@ function rebuild() {
     state = p;
     // Riposiziona la camera solo quando cambia l'ingombro, non a ogni slider.
     const key = `${p.svgUse}-${artwork?.name}-${p.shape}-${p.size}`;
-    viewer.setParts(parts, { refit: key !== lastShapeKey });
+    refreshPartList();
+    updatePreview(key !== lastShapeKey);
     lastShapeKey = key;
     writeHashState({ ...state, svgUse: 'none' }, DEFAULTS);
     exportButtons.forEach((b) => { b.disabled = false; });
@@ -207,6 +248,7 @@ function rebuild() {
     console.error(err);
     parts = [];
     viewer.setParts([]);
+    refreshPartList();
     exportButtons.forEach((b) => { b.disabled = true; });
     shell.setStatus(err instanceof Error ? err.message : 'Errore nella geometria: prova altri valori', 'warn');
   }

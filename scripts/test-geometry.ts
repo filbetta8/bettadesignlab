@@ -7,6 +7,7 @@ import { buildCoaster } from '../apps/coaster/src/geometry.ts';
 import { DEFAULTS, sanitize as sanitizeCoaster, type CoasterParams } from '../apps/coaster/src/params.ts';
 import { buildVase } from '../apps/vase/src/geometry.ts';
 import { DEFAULTS as VASE_DEFAULTS, sanitize } from '../apps/vase/src/params.ts';
+import { stripSvgDoctype } from '../apps/coaster/src/svg.ts';
 import { groundPart, separateParts } from '../apps/coaster/src/parts.ts';
 import { bounds } from '@bdl/geometry';
 import { unzipSync, strFromU8 } from 'fflate';
@@ -204,6 +205,13 @@ for (const patternMode of ['inlay', 'relief', 'engrave'] as const) {
   const model = strFromU8(unzipSync(to3MF(arranged))['3D/3dmodel.model']);
   if ((model.match(/<mesh>/g) ?? []).length !== parts.length) fail('svg: 3MF perde oggetti separati');
 }
+
+const legacySvg = '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd"><svg/>';
+if (stripSvgDoctype(legacySvg) !== '<svg/>') fail('svg: DOCTYPE standard non rimosso');
+try {
+  stripSvgDoctype('<!DOCTYPE svg [<!ENTITY example "value">]><svg/>');
+  fail('svg: entità XML accettate');
+} catch { /* Le entità personalizzate non fanno parte dei tracciati SVG supportati. */ }
 
 console.log(`${runs} combinazioni provate, ${failures} errori`);
 process.exit(failures ? 1 : 0);

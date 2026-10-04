@@ -282,5 +282,45 @@ const ring = M.CrossSection.union(rasterPieces);
 if (Math.abs(ring.area() - 8 / 9) > 0.001) fail('clicker: tracciamento raster perde il foro');
 ring.delete(); rasterPieces.forEach((piece) => piece.delete());
 
+// Blocchi: forma unica, switch decentrati, occhielli alle quattro direzioni,
+// corsa libera e assenza di sovrapposizioni nel piatto esportato.
+for (const blockShape of ['square', 'round', 'hex'] as const)
+for (const compact of [false, true])
+for (const loopAngle of [-90, 0, 90, 180]) {
+  runs++;
+  const p = sanitizeKeycap({ ...KEYCAP_DEFAULTS, shape: 'blocks', compact, keychain: true, loopAngle, loopHole: 8, switchX: 8, switchY: -3,
+    blockData: JSON.stringify([
+      { shape: blockShape, width: 44, height: 38, x: 8, y: -3, angle: 15 },
+      { shape: 'square', width: 24, height: 18, x: -12, y: 0, angle: -25 },
+    ]) });
+  const result = buildKeycap(M, p);
+  for (const part of result.parts) {
+    const mesh = new M.Mesh({ numProp: 3, vertProperties: part.mesh.positions, triVerts: part.mesh.indices }); mesh.merge();
+    const m = new M.Manifold(mesh);
+    try {
+      const pieces = m.decompose();
+      if (m.status() !== 'NoError' || m.volume() <= 0 || pieces.length !== 1) fail('blocks: corpo o occhiello non solidale');
+      pieces.forEach((piece) => piece.delete());
+    } finally { m.delete(); }
+  }
+  const printed = printKeycapAssembly(result.parts, p.size);
+  const base = bounds(printed.filter((part) => part.id === 'base'));
+  const cap = bounds(printed.filter((part) => part.id === 'cap'));
+  if (cap.min[0] < base.max[0] + 9.9) fail('blocks: base e pulsante si sovrappongono nel 3MF');
+  const make = (part: import('@bdl/geometry').Part) => { const mesh = new M.Mesh({ numProp: 3, vertProperties: part.mesh.positions, triVerts: part.mesh.indices }); mesh.merge(); return new M.Manifold(mesh); };
+  const baseSolid = make(result.parts.find((part) => part.id === 'base')!);
+  const capSolid = make(result.parts.find((part) => part.id === 'cap')!);
+  const pressed = capSolid.translate([0, 0, -4]); const hit = baseSolid.intersect(pressed);
+  if (hit.volume() > 0.001) fail('blocks: corsa impedita');
+  hit.delete(); pressed.delete(); baseSolid.delete(); capSolid.delete();
+}
+for (const [blocks, switchX] of [
+  [[{ shape: 'square', width: 30, height: 30, x: 0, y: 0, angle: 0 }, { shape: 'round', width: 20, height: 20, x: 50, y: 0, angle: 0 }], 0],
+  [[{ shape: 'square', width: 30, height: 30, x: 0, y: 0, angle: 0 }], 40],
+] as const) {
+  try { buildKeycap(M, { ...KEYCAP_DEFAULTS, shape: 'blocks', blockData: JSON.stringify(blocks), switchX }); fail('blocks: configurazione non stampabile accettata'); }
+  catch (error) { if (!(error instanceof Error) || !/blocchi|switch/.test(error.message)) fail('blocks: errore inatteso'); }
+}
+
 console.log(`${runs} combinazioni provate, ${failures} errori`);
 process.exit(failures ? 1 : 0);

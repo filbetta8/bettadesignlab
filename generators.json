@@ -17,10 +17,10 @@
     },
     {
       "id": "keycap",
-      "name": "Keycap",
-      "status": "planned",
+      "name": "Keycap / Fidget Clicker",
+      "status": "beta",
       "category": "Tech",
-      "blurb": "Keycap MX con icone, lettere o loghi."
+      "blurb": "Clicker per switch MX con sagome, SVG, immagini e testo. Pulsante e base personalizzabili."
     },
     {
       "id": "magnet",

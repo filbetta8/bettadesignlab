@@ -7,6 +7,8 @@ import { buildCoaster } from '../apps/coaster/src/geometry.ts';
 import { DEFAULTS, sanitize as sanitizeCoaster, type CoasterParams } from '../apps/coaster/src/params.ts';
 import { buildVase } from '../apps/vase/src/geometry.ts';
 import { DEFAULTS as VASE_DEFAULTS, sanitize } from '../apps/vase/src/params.ts';
+import { groundPart, separateParts } from '../apps/coaster/src/parts.ts';
+import { bounds } from '@bdl/geometry';
 import { unzipSync, strFromU8 } from 'fflate';
 import { toSTL, to3MF } from '@bdl/export';
 
@@ -127,7 +129,7 @@ for (const corkRecess of [false, true]) {
       if (solid.status() !== 'NoError' || solid.volume() <= 0) fail(`${label}: mesh non valida`);
       if (part.id === 'base' && Math.abs(solid.boundingBox().min[2]) > 1e-3) fail(`${label}: base sollevata`);
       // Il foro del disegno deve restare vuoto nel motivo e attraversare la sagoma.
-      if (part.id === 'pattern' || svgUse === 'shape') {
+      if (part.id !== 'base' || svgUse === 'shape') {
         const probe = M.Manifold.cylinder(20, 1, -1, 12);
         const hit = solid.intersect(probe);
         if (hit.volume() > 1e-5) fail(`${label}: foro SVG perso`);
@@ -174,6 +176,33 @@ try {
   fail('svg: sagoma senza riempimento accettata');
 } catch (error) {
   if (!(error instanceof Error) || !error.message.includes('aree piene')) fail('svg: errore inatteso per linee come sagoma');
+}
+
+const twoElements = { name: 'due.svg', shapes: [
+  [[[-0.4, -0.1], [-0.2, -0.1], [-0.2, 0.1], [-0.4, 0.1]]],
+  [[[0.2, -0.1], [0.4, -0.1], [0.4, 0.1], [0.2, 0.1]]],
+] } as import('../apps/coaster/src/svg.ts').SvgArtwork;
+for (const patternMode of ['inlay', 'relief', 'engrave'] as const) {
+  runs++;
+  const parts = buildCoaster(M, { ...DEFAULTS, svgUse: 'decoration', patternMode }, twoElements).parts;
+  if (parts.length !== (patternMode === 'engrave' ? 1 : 3)) fail(`svg/${patternMode}: elementi non separati`);
+  const original = parts.map((part) => new Float32Array(part.mesh.positions));
+  const arranged = separateParts(parts);
+  for (let i = 0; i < parts.length; i++) {
+    const grounded = groundPart(parts[i]);
+    if (Math.abs(bounds([grounded]).min[2]) > 1e-5 || Math.abs(bounds([arranged[i]]).min[2]) > 1e-5) fail('svg: pezzo separato non poggia sul piano');
+    if (parts[i].mesh.positions.some((value, k) => value !== original[i][k])) fail('svg: vista separata modifica l’assemblato');
+    const mesh = new M.Mesh({ numProp: 3, vertProperties: grounded.mesh.positions, triVerts: grounded.mesh.indices });
+    mesh.merge(); const solid = new M.Manifold(mesh);
+    if (solid.status() !== 'NoError' || solid.volume() <= 0) fail('svg: pezzo separato non valido');
+    solid.delete();
+    for (let j = 0; j < i; j++) {
+      const a = bounds([arranged[i]]), b = bounds([arranged[j]]);
+      if (a.min[0] < b.max[0] && a.max[0] > b.min[0] && a.min[1] < b.max[1] && a.max[1] > b.min[1]) fail('svg: pezzi separati sovrapposti');
+    }
+  }
+  const model = strFromU8(unzipSync(to3MF(arranged))['3D/3dmodel.model']);
+  if ((model.match(/<mesh>/g) ?? []).length !== parts.length) fail('svg: 3MF perde oggetti separati');
 }
 
 console.log(`${runs} combinazioni provate, ${failures} errori`);

@@ -7,7 +7,8 @@ import { sanitize, type Params } from './params.ts';
 export function buildKeycap(M: ManifoldToplevel, input: Params, artwork?: SvgArtwork): { parts: Part[]; warnings: string[] } {
   const p = sanitize(input), s = new Scope();
   const parts: Part[] = [], warnings: string[] = [];
-  const plateZ = 10.3, capZ = plateZ + 7;
+  const plateZ = p.compact ? 9.3 : 10.3, capZ = plateZ + 7;
+  const floor = p.compact ? 1 : 1.8;
   const positions = Array.from({ length: p.switches }, (_, i) => (i - (p.switches - 1) / 2) * p.spacing);
   try {
     const { CrossSection: C } = M;
@@ -41,10 +42,17 @@ export function buildKeycap(M: ManifoldToplevel, input: Params, artwork?: SvgArt
       let base = solid(outside, plateZ + 1.5 + p.rim);
       // Il pulsante si muove entro il bordo: la cavità superiore resta libera.
       base = s.t(base.subtract(solid(s.t(capOutline.offset(p.gap, 'Round', 2, 64)), 12, plateZ + 1.5)));
+      if (p.compact) {
+        // La gonna del pulsante scende nella base. Restano i ponti di montaggio
+        // attorno alle aperture MX, separati dalla gonna da 0.3 mm per lato.
+        const mounts = s.t(C.union(positions.map((x) => s.t(square(17.2, 17.2).translate([x, 0])))));
+        const skirtSpace = s.t(s.t(capOutline.offset(p.gap, 'Round', 2, 64)).subtract(mounts));
+        base = s.t(base.subtract(solid(skirtSpace, 15, plateZ - 0.3)));
+      }
       for (const x of positions) {
         const lower = s.t(square(16 + p.socketFit, 16 + p.socketFit).translate([x, 0]));
         const throat = s.t(square(14 + p.socketFit, 14 + p.socketFit).translate([x, 0]));
-        base = s.t(base.subtract(solid(lower, plateZ - 1.8, 1.8)));
+        base = s.t(base.subtract(solid(lower, plateZ - floor, floor)));
         base = s.t(base.subtract(solid(throat, 15, plateZ)));
       }
       if (p.keychain) {
@@ -58,6 +66,15 @@ export function buildKeycap(M: ManifoldToplevel, input: Params, artwork?: SvgArt
       addPart('base', 'Base', p.baseColor, base);
     }
     let cap = solid(capOutline, p.topThickness, capZ);
+    if (p.compact) {
+      const interior = s.t(capOutline.offset(-1.2, 'Round', 2, 64));
+      const switchSpace = s.t(C.union(positions.map((x) => s.t(square(17.8, 17.8).translate([x, 0])))));
+      const cavity = s.t(interior.add(switchSpace));
+      const skirt = s.t(capOutline.subtract(cavity));
+      // Scavo aperto sul fondo, con bordo di 1.2 mm dove c'è spazio.
+      // Il supporto dello stelo viene aggiunto dopo e rimane pieno.
+      cap = s.t(cap.add(solid(skirt, 3, capZ - 2.7)));
+    }
     for (const x of positions) {
       const collar = s.t(s.t(C.circle(2.8, 48)).translate([x, 0]));
       cap = s.t(cap.add(solid(collar, 4.2, capZ - 4)));

@@ -66,6 +66,7 @@ selectedSTL.disabled = true;
 
 shell.panel.append(
   section('Modello',
+    track('compact', toggle({ label: 'Profilo compatto con scavo', value: state.compact, hint: 'Pulsante scavato sotto, bordo che copre lo switch e base più bassa. Disattiva per il profilo originale.', onChange: (v) => set('compact', v) })).root,
     track('product', segmented<Params['product']>({ label: 'Prodotto', value: state.product, options: [{ value: 'clicker', label: 'Fidget clicker' }, { value: 'keycap', label: 'Solo keycap' }], onChange: (v) => set('product', v) })).root,
     el('p', { class: 'bdl-hint' }, 'Per switch MX standard con stelo a croce. Il meccanismo è uno switch reale, da acquistare separatamente.'),
     track('shape', segmented<Params['shape']>({ label: 'Forma', value: state.shape, options: [{ value: 'square', label: 'Quadra' }, { value: 'round', label: 'Tonda' }, { value: 'hex', label: 'Esagono' }, { value: 'artwork', label: 'Sagoma disegno' }], onChange: (v) => set('shape', v) })).root,

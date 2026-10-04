@@ -8,13 +8,14 @@ export interface Params {
   mode: 'inlay' | 'relief' | 'engrave';
   gap: number; stemFit: number; socketFit: number; rim: number;
   switches: number; spacing: number; keychain: boolean;
+  compact: boolean;
   baseColor: string; capColor: string; artColor: string;
 }
 export const DEFAULTS: Params = {
   product: 'clicker', shape: 'square', size: 35, topThickness: 1.6,
   decorationDepth: 0.8, designScale: 75, mode: 'inlay', gap: 0.35,
   stemFit: 0.1, socketFit: 0.15, rim: 2.4, switches: 1, spacing: 20,
-  keychain: false, baseColor: '#25355e', capColor: '#f2f0eb', artColor: '#d4a429',
+  keychain: false, compact: true, baseColor: '#25355e', capColor: '#f2f0eb', artColor: '#d4a429',
 };
 export function sanitize(input: Params): Params {
   const p = { ...DEFAULTS };
@@ -34,6 +35,7 @@ export function sanitize(input: Params): Params {
   if (p.product === 'clicker') p.size = Math.max(p.size, 20 + (p.switches - 1) * p.spacing);
   p.decorationDepth = Math.min(p.decorationDepth, p.topThickness - 0.6);
   p.keychain = input.keychain === true;
+  p.compact = input.compact === undefined ? DEFAULTS.compact : input.compact === true;
   for (const key of ['baseColor', 'capColor', 'artColor'] as const) {
     if (FILAMENTS.some((f) => f.hex === input[key])) p[key] = input[key];
   }

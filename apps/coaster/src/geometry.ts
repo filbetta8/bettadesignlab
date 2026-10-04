@@ -2,7 +2,8 @@
 // Non tocca il DOM, così la stessa funzione gira nel browser e nei test Node.
 
 import { Scope, outline, toMeshData, type ManifoldToplevel, type CrossSection, type Part, type Vec2 } from '@bdl/geometry';
-import type { CoasterParams } from './params.ts';
+import { sanitize, type CoasterParams } from './params.ts';
+import type { SvgArtwork } from './svg.ts';
 
 export interface BuildResult {
   parts: Part[];
@@ -12,12 +13,21 @@ export interface BuildResult {
 /** Spessore minimo di materiale sotto qualsiasi incavo, in mm. */
 const MIN_FLOOR = 0.6;
 
-export function buildCoaster(M: ManifoldToplevel, p: CoasterParams): BuildResult {
+export function buildCoaster(M: ManifoldToplevel, p: CoasterParams, artwork?: SvgArtwork): BuildResult {
+  p = sanitize(p);
   const s = new Scope();
   const warnings: string[] = [];
   try {
     const { Manifold } = M;
-    const shape = outline(M, s, p.shape, p.size, p.cornerRadius);
+    if (p.svgUse !== 'none' && !artwork) throw new Error('Carica un SVG per usare questa modalità.');
+    const svg = artwork && p.svgUse !== 'none' ? svgSection(M, s, artwork, p.svgUse === 'shape') : null;
+    const shape = p.svgUse === 'shape' && svg
+      ? s.t(svg.scale([p.size, p.size]))
+      : outline(M, s, p.shape, p.size, p.cornerRadius);
+    if (p.svgUse === 'shape') {
+      const islands = shape.decompose().map((part) => s.t(part));
+      if (islands.length !== 1) throw new Error('La sagoma SVG deve essere una sola forma connessa. Unisci le parti oppure usala come decorazione.');
+    }
 
     // Base + bordo rialzato.
     let base = s.t(shape.extrude(p.baseHeight));
@@ -45,8 +55,15 @@ export function buildCoaster(M: ManifoldToplevel, p: CoasterParams): BuildResult
     const parts: Part[] = [];
     let patternPart: Part | null = null;
 
-    if (p.pattern !== 'none') {
-      const pat2d = s.t(s.t(patternSection(M, s, p, field)).intersect(field));
+    if (p.pattern !== 'none' || p.svgUse === 'decoration') {
+      const drawing = p.svgUse === 'decoration' && svg
+        ? s.t(s.t(svg.scale([p.size * p.svgScale / 100, p.size * p.svgScale / 100])).rotate(p.angle))
+        : patternSection(M, s, p, field);
+      const pat2d = s.t(drawing.intersect(field));
+      if (p.svgUse === 'decoration' && svg) {
+        if (pat2d.isEmpty()) throw new Error('SVG fuori dall’area utile: riduci la dimensione.');
+        if (drawing.area() - pat2d.area() > 0.01) warnings.push('SVG ritagliato entro il bordo: riduci la dimensione per conservarlo intero.');
+      }
       if (!pat2d.isEmpty()) {
         if (p.patternMode === 'relief') {
           const solid = s.t(s.t(pat2d.extrude(p.patternHeight + 0.01)).translate([0, 0, p.baseHeight - 0.01]));
@@ -60,8 +77,10 @@ export function buildCoaster(M: ManifoldToplevel, p: CoasterParams): BuildResult
           if (depth > 0.15) {
             const cutter = s.t(s.t(pat2d.extrude(depth + 0.02)).translate([0, 0, p.baseHeight - depth]));
             base = s.t(base.subtract(cutter));
-            const fill = s.t(s.t(pat2d.extrude(depth)).translate([0, 0, p.baseHeight - depth]));
-            patternPart = { id: 'pattern', name: 'Motivo', color: p.patternColor, mesh: toMeshData(fill) };
+            if (p.patternMode === 'inlay') {
+              const fill = s.t(s.t(pat2d.extrude(depth)).translate([0, 0, p.baseHeight - depth]));
+              patternPart = { id: 'pattern', name: 'Motivo', color: p.patternColor, mesh: toMeshData(fill) };
+            }
           } else {
             warnings.push('Base troppo sottile per l’intarsio: aumenta lo spessore.');
           }
@@ -169,4 +188,13 @@ function hexPoly(r: number): Vec2[] {
     pts.push([r * Math.cos(a), r * Math.sin(a)]);
   }
   return pts;
+}
+
+function svgSection(M: ManifoldToplevel, s: Scope, artwork: SvgArtwork, filledOnly: boolean): CrossSection {
+  const shapes = filledOnly ? artwork.filledShapes ?? artwork.shapes : artwork.shapes;
+  if (!shapes.length) throw new Error('Per la sagoma serve un SVG con aree piene. Le linee possono essere usate come decorazione.');
+  const regions = shapes.map((contours) => s.t(M.CrossSection.ofPolygons(contours, 'EvenOdd')));
+  const section = s.t(M.CrossSection.union(regions));
+  if (section.isEmpty() || section.area() < 1e-8) throw new Error('SVG senza geometria piena valida.');
+  return section;
 }

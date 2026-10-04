@@ -1,10 +1,12 @@
 import type { OutlineShape } from '@bdl/geometry';
 
 export type Pattern = 'none' | 'rings' | 'hex' | 'stripes' | 'grid' | 'waves' | 'dots';
-export type PatternMode = 'relief' | 'inlay';
+export type PatternMode = 'relief' | 'inlay' | 'engrave';
 
 export interface CoasterParams {
   [key: string]: string | number | boolean;
+  svgUse: 'none' | 'decoration' | 'shape';
+  svgScale: number;
   shape: OutlineShape;
   size: number;
   cornerRadius: number;
@@ -24,6 +26,8 @@ export interface CoasterParams {
 }
 
 export const DEFAULTS: CoasterParams = {
+  svgUse: 'none',
+  svgScale: 70,
   shape: 'round',
   size: 100,
   cornerRadius: 10,
@@ -52,7 +56,9 @@ export function sanitize(p: CoasterParams): CoasterParams {
     ...p,
     shape: SHAPES.includes(p.shape) ? p.shape : DEFAULTS.shape,
     pattern: PATTERNS.includes(p.pattern) ? p.pattern : DEFAULTS.pattern,
-    patternMode: p.patternMode === 'relief' ? 'relief' : 'inlay',
+    svgUse: p.svgUse === 'decoration' || p.svgUse === 'shape' ? p.svgUse : 'none',
+    svgScale: Number.isFinite(p.svgScale) ? clamp(p.svgScale, 10, 100) : DEFAULTS.svgScale,
+    patternMode: p.patternMode === 'relief' || p.patternMode === 'engrave' ? p.patternMode : 'inlay',
     size: clamp(p.size, 60, 140),
     cornerRadius: clamp(p.cornerRadius, 0, 40),
     baseHeight: clamp(p.baseHeight, 1.6, 8),

@@ -322,5 +322,26 @@ for (const [blocks, switchX] of [
   catch (error) { if (!(error instanceof Error) || !/blocchi|switch/.test(error.message)) fail('blocks: errore inatteso'); }
 }
 
+// Tasti indipendenti: conteggio, base continua, corsa e registrazione degli intarsi.
+for (const count of [1, 4, 8]) for (const keyLayout of ['horizontal', 'vertical'] as const)
+for (const mode of ['inlay', 'relief', 'engrave'] as const) {
+  runs++;
+  const p = { ...KEYCAP_DEFAULTS, shape: 'keys' as const, size: 22, keyLayout, mode, keychain: true, keyLabels: JSON.stringify(Array(count).fill('A')) };
+  const art = { name: 'A', shapes: [[[[ -0.2, -0.3 ], [0.2, -0.3], [0.2, 0.3], [-0.2, 0.3]]]] } as import('../apps/coaster/src/svg.ts').SvgArtwork;
+  const result = buildKeycap(M, p, undefined, Array(count).fill(art));
+  if (result.parts.filter((p) => p.id.startsWith('cap-')).length !== count) fail('keys: numero pulsanti errato');
+  const solids = result.parts.map((part) => { const mesh = new M.Mesh({ numProp: 3, vertProperties: part.mesh.positions, triVerts: part.mesh.indices }); mesh.merge(); return new M.Manifold(mesh); });
+  const base = solids[0];
+  const components = base.decompose(); if (components.length !== 1) fail('keys: base separata'); components.forEach((m) => m.delete());
+  solids.forEach((m, i) => {
+    if (m.status() !== 'NoError' || m.volume() <= 0) fail('keys: mesh invalida');
+    if (result.parts[i].id.startsWith('cap-')) { const pressed = m.translate([0, 0, -4]); const overlap = pressed.intersect(base); if (overlap.volume() > 0.001) fail('keys: collisione durante corsa'); overlap.delete(); pressed.delete(); }
+  });
+  const printed = printKeycapAssembly(result.parts, 22);
+  if (bounds(printed.filter((p) => p.id !== 'base')).min[0] - bounds([printed[0]]).max[0] < 9.9) fail('keys: export sovrapposto');
+  if (to3MF(printed).length < 1000) fail('keys: export vuoto');
+  solids.forEach((m) => m.delete());
+}
+
 console.log(`${runs} combinazioni provate, ${failures} errori`);
 process.exit(failures ? 1 : 0);

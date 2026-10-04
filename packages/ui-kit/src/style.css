@@ -170,3 +170,27 @@ button, input, select { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Campi e scelte compatte, attivati dai generatori che ne hanno bisogno. */
+.bdl-form-field { display: grid; gap: 8px; margin: 14px 0; font-size: 14px; }
+.bdl-input { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid var(--bdl-border); border-radius: var(--bdl-radius-sm); background: var(--bdl-surface); }
+.bdl-input:focus-visible { outline: 2px solid var(--bdl-accent); outline-offset: 2px; }
+.bdl-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.bdl-choice-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+.bdl-choice-grid .bdl-btn { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.bdl-choice-grid .bdl-btn[aria-pressed='true'] { background: var(--bdl-accent-soft); border-color: var(--bdl-accent); color: var(--bdl-accent); }
+.bdl-choice-grid-icons { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.bdl-choice-grid-icons .bdl-btn { font-size: 24px; min-height: 46px; padding: 6px; }
+.bdl-seg-wrap .bdl-seg { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-columns: auto; }
+.bdl-seg-wrap .bdl-seg button { min-width: 0; justify-content: center; min-height: 42px; }
+
+/* Libreria in finestra: scroll interno, ricerca e focus nativo del dialog. */
+.bdl-dialog { width: min(760px, calc(100vw - 32px)); max-height: 85dvh; padding: 24px; border: 1px solid var(--bdl-border); border-radius: var(--bdl-radius); background: var(--bdl-surface); color: var(--bdl-text); box-shadow: var(--bdl-shadow); overflow-y: auto; }
+.bdl-dialog::backdrop { background: rgb(0 0 0 / 0.6); }
+.bdl-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.bdl-dialog-header h2 { margin: 0; font-size: 22px; }
+.bdl-dialog > .bdl-input { margin: 16px 0; }
+.bdl-icon-library { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px; }
+.bdl-icon-library .bdl-btn { flex-direction: column; white-space: normal; min-width: 0; padding: 10px 4px; font-size: 11px; }
+.bdl-icon-library .bdl-btn svg { width: 32px; height: 32px; }
+.bdl-icon-library .bdl-btn[aria-pressed='true'] { background: var(--bdl-accent-soft); border-color: var(--bdl-accent); }

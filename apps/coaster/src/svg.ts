@@ -6,11 +6,12 @@ export interface SvgArtwork { name: string; shapes: Vec2[][][]; filledShapes?: V
 
 export function parseSvg(text: string, name: string): SvgArtwork {
   if (text.length > 500_000) throw new Error('SVG troppo grande: massimo 500 KB.');
+  text = stripSvgDoctype(text);
   const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
   if (doc.querySelector('parsererror') || doc.documentElement.localName !== 'svg') throw new Error('File SVG non valido.');
   // Il file resta locale e non viene inserito nel DOM. Escludiamo elementi che
   // richiedono risorse esterne o che non descrivono geometria vettoriale autonoma.
-  if (doc.querySelector('script, foreignObject, image, use, text, style, filter, mask, clipPath') || /<!DOCTYPE|<!ENTITY/i.test(text)) {
+  if (doc.querySelector('script, foreignObject, image, use, text, style, filter, mask, clipPath')) {
     throw new Error('Converti i testi in tracciati e usa un SVG senza immagini, CSS o maschere.');
   }
   for (const node of doc.querySelectorAll('*')) {
@@ -36,13 +37,13 @@ export function parseSvg(text: string, name: string): SvgArtwork {
     if (Number(style?.opacity ?? 1) === 0) continue;
     if (style?.fill !== 'none' && Number(style?.fillOpacity ?? 1) > 0) {
       for (const shape of SVGLoader.createShapes(path)) {
-        const points = shape.extractPoints(32);
+        const points = shape.extractPoints(12);
         add([points.shape, ...points.holes].map((ring) => ring.map((v): Vec2 => [v.x, -v.y])), true);
       }
     }
     if (style?.stroke && style.stroke !== 'none' && Number(style.strokeOpacity ?? 1) > 0 && Number(style.strokeWidth ?? 1) > 0) {
       for (const subPath of path.subPaths) {
-        const points = subPath.getPoints(32);
+        const points = subPath.getPoints(12);
         if (subPath.autoClose && points.length && !points[0].equals(points[points.length - 1])) points.push(points[0].clone());
         const geometry = SVGLoader.pointsToStroke(points, style as unknown as StrokeStyle, 12);
         if (!geometry) continue;
@@ -79,4 +80,13 @@ function normalize(shapes: Vec2[][][]): void {
     v[0] = (v[0] - (minX + maxX) / 2) / size;
     v[1] = (v[1] - (minY + maxY) / 2) / size;
   }
+}
+
+/** Elimina dichiarazioni esterne obsolete prima del parsing, senza caricare DTD. */
+export function stripSvgDoctype(text: string): string {
+  if (/<!ENTITY/i.test(text)) throw new Error('SVG con entità XML non supportato.');
+  return text.replace(/<!DOCTYPE[^>]*>/gi, (declaration) => {
+    if (declaration.includes('[') || !/^<!DOCTYPE\s+svg(?:\s|>)/i.test(declaration)) throw new Error('Dichiarazione XML SVG non supportata.');
+    return '';
+  });
 }

@@ -4,7 +4,7 @@
 
 import { loadManifold } from '@bdl/geometry';
 import { buildCoaster } from '../apps/coaster/src/geometry.ts';
-import { DEFAULTS, type CoasterParams } from '../apps/coaster/src/params.ts';
+import { DEFAULTS, sanitize as sanitizeCoaster, type CoasterParams } from '../apps/coaster/src/params.ts';
 import { buildVase } from '../apps/vase/src/geometry.ts';
 import { DEFAULTS as VASE_DEFAULTS, sanitize } from '../apps/vase/src/params.ts';
 import { unzipSync, strFromU8 } from 'fflate';
@@ -104,6 +104,77 @@ for (const drainageHole of [false, true]) {
 }
 const invalid = sanitize({ ...VASE_DEFAULTS, height: NaN, wall: Infinity, color: '"/><invalid>', drainageHole: 'false' as unknown as boolean });
 if (invalid.height !== VASE_DEFAULTS.height || invalid.wall !== VASE_DEFAULTS.wall || invalid.color !== VASE_DEFAULTS.color || invalid.drainageHole) fail('vase: parametri non validi accettati');
+
+// Import SVG: fori preservati, intarsio/incisione con sughero e sagome connesse.
+const artwork = { name: 'anello.svg', shapes: [[
+  [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]],
+  [[-0.15, -0.15], [0.15, -0.15], [0.15, 0.15], [-0.15, 0.15]],
+]] } as import('../apps/coaster/src/svg.ts').SvgArtwork;
+for (const svgUse of ['decoration', 'shape'] as const)
+for (const patternMode of ['relief', 'inlay', 'engrave'] as const)
+for (const corkRecess of [false, true]) {
+  runs++;
+  const p = sanitizeCoaster({ ...DEFAULTS, svgUse, patternMode, corkRecess, pattern: svgUse === 'shape' ? 'none' : 'hex', baseHeight: 1.6, corkDepth: 3, patternHeight: 3 });
+  const { parts } = buildCoaster(M, p, artwork);
+  const label = `svg/${svgUse}/${patternMode}/${corkRecess}`;
+  const expectedParts = svgUse === 'shape' || patternMode === 'engrave' || (corkRecess && patternMode === 'inlay') ? 1 : 2;
+  if (parts.length !== expectedParts) fail(`${label}: numero pezzi errato`);
+  for (const part of parts) {
+    const mesh = new M.Mesh({ numProp: 3, vertProperties: part.mesh.positions, triVerts: part.mesh.indices });
+    mesh.merge();
+    const solid = new M.Manifold(mesh);
+    try {
+      if (solid.status() !== 'NoError' || solid.volume() <= 0) fail(`${label}: mesh non valida`);
+      if (part.id === 'base' && Math.abs(solid.boundingBox().min[2]) > 1e-3) fail(`${label}: base sollevata`);
+      // Il foro del disegno deve restare vuoto nel motivo e attraversare la sagoma.
+      if (part.id === 'pattern' || svgUse === 'shape') {
+        const probe = M.Manifold.cylinder(20, 1, -1, 12);
+        const hit = solid.intersect(probe);
+        if (hit.volume() > 1e-5) fail(`${label}: foro SVG perso`);
+        hit.delete(); probe.delete();
+      }
+    } finally { solid.delete(); }
+  }
+  if (!unzipSync(to3MF(parts))['3D/3dmodel.model'] || toSTL(parts).length < 84) fail(`${label}: export non valido`);
+}
+const volumeOf = (parts: import('@bdl/geometry').Part[]) => parts.reduce((sum, part) => {
+  const mesh = new M.Mesh({ numProp: 3, vertProperties: part.mesh.positions, triVerts: part.mesh.indices });
+  mesh.merge();
+  const solid = new M.Manifold(mesh);
+  try { return sum + solid.volume(); } finally { solid.delete(); }
+}, 0);
+const blankVolume = volumeOf(buildCoaster(M, { ...DEFAULTS, pattern: 'none' }).parts);
+for (const patternMode of ['inlay', 'engrave', 'relief'] as const) {
+  const volume = volumeOf(buildCoaster(M, { ...DEFAULTS, svgUse: 'decoration', patternMode }, artwork).parts);
+  if (patternMode === 'inlay' && Math.abs(volume - blankVolume) > 0.01) fail('svg: intarsio non riempie esattamente l’incavo');
+  if (patternMode === 'engrave' && volume >= blankVolume - 1) fail('svg: incisione non asporta materiale');
+  if (patternMode === 'relief' && volume <= blankVolume + 1) fail('svg: rilievo non aggiunge materiale');
+}
+
+try {
+  buildCoaster(M, { ...DEFAULTS, svgUse: 'shape' }, { name: 'separati.svg', shapes: [
+    [[[-0.5, -0.5], [-0.3, -0.5], [-0.3, -0.3], [-0.5, -0.3]]],
+    [[[0.3, 0.3], [0.5, 0.3], [0.5, 0.5], [0.3, 0.5]]],
+  ] });
+  fail('svg: sagoma disconnessa accettata');
+} catch (error) {
+  if (!(error instanceof Error) || !error.message.includes('connessa')) fail('svg: errore inatteso per sagoma disconnessa');
+}
+
+const lines = { name: 'linee.svg', filledShapes: [], shapes: [[[
+  [-0.5, -0.05], [0.5, -0.05], [0.5, 0.05], [-0.5, 0.05],
+]]] } as import('../apps/coaster/src/svg.ts').SvgArtwork;
+for (const patternMode of ['inlay', 'relief', 'engrave'] as const) {
+  runs++;
+  const parts = buildCoaster(M, { ...DEFAULTS, svgUse: 'decoration', patternMode }, lines).parts;
+  if (parts.length !== (patternMode === 'engrave' ? 1 : 2) || volumeOf(parts) <= 0) fail('svg: decorazione da linee non valida');
+}
+try {
+  buildCoaster(M, { ...DEFAULTS, svgUse: 'shape' }, lines);
+  fail('svg: sagoma senza riempimento accettata');
+} catch (error) {
+  if (!(error instanceof Error) || !error.message.includes('aree piene')) fail('svg: errore inatteso per linee come sagoma');
+}
 
 console.log(`${runs} combinazioni provate, ${failures} errori`);
 process.exit(failures ? 1 : 0);

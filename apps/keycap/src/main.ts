@@ -42,7 +42,7 @@ const set = <K extends keyof Params>(key: K, value: Params[K]) => {
 };
 const hint = el('p', { class: 'bdl-hint' }, 'Nessun disegno caricato.');
 const file = el('input', { type: 'file', accept: '.svg,.png,.jpg,.jpeg,.webp', id: 'keycap-artwork' });
-const inputText = el('input', { type: 'text', maxlength: '12', id: 'keycap-text', placeholder: 'Nome o iniziali' });
+const inputText = el('input', { class: 'bdl-input', type: 'text', maxlength: '12', id: 'keycap-text', placeholder: 'Nome o iniziali' });
 async function loadFile(next: File) {
   const token = ++generation;
   hint.textContent = 'Elaborazione del disegno…';
@@ -57,7 +57,7 @@ async function loadFile(next: File) {
   } finally { file.value = ''; }
 }
 file.addEventListener('change', () => { const next = file.files?.[0]; if (next) void loadFile(next); });
-const list = el('div', { class: 'bdl-row', role: 'group', 'aria-label': 'Pezzi del clicker' });
+const list = el('div', { class: 'bdl-choice-grid', role: 'group', 'aria-label': 'Pezzi del clicker' });
 const partColor = colorPicker({ label: 'Colore pezzo selezionato', value: state.artColor, onChange: (color) => {
   if (!selected) { toast('Seleziona prima un pezzo'); return; }
   colors[selected] = color; schedule();
@@ -76,7 +76,7 @@ shell.panel.append(
     track('compact', toggle({ label: 'Profilo compatto con scavo', value: state.compact, hint: 'Pulsante scavato sotto, bordo che copre lo switch e base più bassa. Disattiva per il profilo originale.', onChange: (v) => set('compact', v) })).root,
     track('product', segmented<Params['product']>({ label: 'Prodotto', value: state.product, options: [{ value: 'clicker', label: 'Fidget clicker' }, { value: 'keycap', label: 'Solo keycap' }], onChange: (v) => set('product', v) })).root,
     el('p', { class: 'bdl-hint' }, 'Per switch MX standard con stelo a croce. Il meccanismo è uno switch reale, da acquistare separatamente.'),
-    track('shape', segmented<Params['shape']>({ label: 'Forma', value: state.shape, options: [{ value: 'square', label: 'Quadra' }, { value: 'round', label: 'Tonda' }, { value: 'hex', label: 'Esagono' }, { value: 'artwork', label: 'Sagoma disegno' }, { value: 'blocks', label: 'Forme composte' }, { value: 'keys', label: 'Tasti con testo' }], onChange: (v) => set('shape', v) })).root,
+    el('div', { class: 'bdl-seg-wrap' }, track('shape', segmented<Params['shape']>({ label: 'Forma', value: state.shape, options: [{ value: 'square', label: 'Quadra' }, { value: 'round', label: 'Tonda' }, { value: 'hex', label: 'Esagono' }, { value: 'artwork', label: 'Sagoma disegno' }, { value: 'blocks', label: 'Forme composte' }, { value: 'keys', label: 'Tasti con testo' }], onChange: (v) => set('shape', v) })).root),
     sizeControl.root,
     track('topThickness', slider({ label: 'Spessore pulsante', value: state.topThickness, min: 1.2, max: 4, step: 0.2, unit: 'mm', onInput: (v) => set('topThickness', v) })).root,
     track('keychain', toggle({ label: 'Occhiello portachiavi', value: state.keychain, onChange: (v) => set('keychain', v) })).root,

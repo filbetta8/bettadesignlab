@@ -1,6 +1,7 @@
 import { Scope, outline, toMeshData, type Part, type ManifoldToplevel, type CrossSection, type Manifold } from '@bdl/geometry';
 import type { SvgArtwork } from '../../coaster/src/svg.ts';
 import { sanitize, readKeyLabels, type Params } from './params.ts';
+import { keyLabelName } from './icons.ts';
 import { readBlocks, blockOutline } from './blocks.ts';
 
 /** Montaggio MX standard: piano di appoggio 10.3 mm, piastra 1.5 mm.
@@ -155,7 +156,7 @@ function buildTextKeys(M: ManifoldToplevel, p: Params, artwork: readonly (SvgArt
         if (part.id === 'base') {
           const mesh = new M.Mesh({ numProp: 3, vertProperties: positions, triVerts: part.mesh.indices }); mesh.merge();
           bases.push(s.t(new M.Manifold(mesh)));
-        } else parts.push({ ...part, id: `${part.id}-${i + 1}`, name: `${part.id === 'cap' ? 'Tasto' : 'Testo'} ${i + 1} · ${label || 'vuoto'}${part.id === 'cap' ? '' : ' · ' + part.name}`, mesh: { positions, indices: part.mesh.indices } });
+        } else parts.push({ ...part, id: `${part.id}-${i + 1}`, name: `${part.id === 'cap' ? 'Tasto' : 'Testo'} ${i + 1} · ${keyLabelName(label) || 'vuoto'}${part.id === 'cap' ? '' : ' · ' + part.name}`, mesh: { positions, indices: part.mesh.indices } });
       }
     });
     const base = s.t(M.Manifold.union(bases));

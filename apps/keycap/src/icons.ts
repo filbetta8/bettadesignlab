@@ -1,0 +1,46 @@
+/** Disegni originali, locali: i tracciati sono usati sia nell'interfaccia sia nel modello. */
+export const KEY_ICONS = [
+  ['heart', 'Cuore', 'amore love', 'M12 21C9 18 2 13 2 7C2 1 9 1 12 6C15 1 22 1 22 7C22 13 15 18 12 21Z'],
+  ['star', 'Stella', 'star', 'M12 2L15 8L22 9L17 14L18 21L12 18L6 21L7 14L2 9L9 8Z'],
+  ['sun', 'Sole', 'sun estate', 'M16 12A4 4 0 1 1 8 12A4 4 0 1 1 16 12Z M12 1V4 M12 20V23 M1 12H4 M20 12H23 M4 4L6 6 M18 18L20 20 M4 20L6 18 M18 6L20 4'],
+  ['moon', 'Luna', 'moon notte', 'M19 17C10 20 4 10 10 3C1 4 0 16 8 20C12 23 18 21 19 17Z'],
+  ['cloud', 'Nuvola', 'cloud cielo', 'M5 19C0 19 0 12 5 11C4 3 16 1 18 10C24 10 25 19 19 19Z'],
+  ['flower', 'Fiore', 'flower natura', 'M12 8C6 1 1 7 8 12C1 17 6 23 12 16C18 23 23 17 16 12C23 7 18 1 12 8Z M14 12A2 2 0 1 1 10 12A2 2 0 1 1 14 12Z'],
+  ['leaf', 'Foglia', 'leaf natura', 'M3 21C1 9 9 2 21 3C22 15 15 23 3 21Z M3 21L17 7'],
+  ['sprout', 'Germoglio', 'pianta plant', 'M12 22V10 M12 14C3 14 2 10 2 5C10 5 12 8 12 14Z M12 10C12 4 16 2 22 2C22 8 18 12 12 10Z'],
+  ['smile', 'Sorriso', 'smile faccina', 'M22 12A10 10 0 1 1 2 12A10 10 0 1 1 22 12Z M8 9V10 M16 9V10 M7 14Q12 20 17 14'],
+  ['ghost', 'Fantasma', 'ghost halloween', 'M4 22V10C4 0 20 0 20 10V22L16 19L12 22L8 19Z M8 10V12 M16 10V12'],
+  ['cat', 'Gatto', 'cat animale', 'M4 10L3 2L10 6H14L21 2L20 10C24 24 0 24 4 10Z M8 12V13 M16 12V13 M10 17L12 19L14 17 M2 15H7 M17 15H22'],
+  ['dog', 'Cane', 'dog animale', 'M6 7C8 2 16 2 18 7V17C18 23 6 23 6 17Z M6 7L2 4L1 14L6 12 M18 7L22 4L23 14L18 12 M9 11V12 M15 11V12 M10 17H14'],
+  ['fish', 'Pesce', 'fish mare', 'M3 12L1 6L7 8C15 1 21 7 23 12C21 17 15 23 7 16L1 18Z M17 10V11'],
+  ['paw', 'Zampa', 'paw animale', 'M7 16C7 9 17 9 17 16C24 22 0 22 7 16Z M5 7A2 3 0 1 1 1 7A2 3 0 1 1 5 7Z M11 4A2 3 0 1 1 7 4A2 3 0 1 1 11 4Z M17 4A2 3 0 1 1 13 4A2 3 0 1 1 17 4Z M23 7A2 3 0 1 1 19 7A2 3 0 1 1 23 7Z'],
+  ['rocket', 'Razzo', 'rocket spazio', 'M7 15C7 7 14 2 22 2C22 10 17 17 9 17Z M7 11L2 12L2 19L9 17 M13 17L12 22L5 22L7 15 M18 7A2 2 0 1 1 14 7A2 2 0 1 1 18 7Z M3 21L1 23'],
+  ['game', 'Controller', 'game gioco console', 'M7 6H17C22 6 24 22 20 22L15 17H9L4 22C0 22 2 6 7 6Z M5 11H11 M8 8V14 M17 10V11 M20 13V14'],
+  ['music', 'Nota musicale', 'music musica', 'M10 19V5L21 2V16 M10 7L21 4 M10 19C10 23 2 23 2 20C2 17 10 16 10 19Z M21 16C21 20 13 20 13 17C13 14 21 13 21 16Z'],
+  ['camera', 'Fotocamera', 'camera foto', 'M2 7H7L9 3H15L17 7H22V21H2Z M17 14A5 5 0 1 1 7 14A5 5 0 1 1 17 14Z'],
+  ['crown', 'Corona', 'crown re regina', 'M3 18L1 5L7 10L12 2L17 10L23 5L21 18Z M3 22H21'],
+  ['gift', 'Regalo', 'gift compleanno', 'M3 11H21V22H3Z M1 7H23V11H1Z M12 7V22 M12 7C0 7 4 -3 12 7C20 -3 24 7 12 7'],
+  ['cup', 'Tazza', 'caffe coffee', 'M3 8H17V17C17 24 3 24 3 17Z M17 9H21C25 9 25 16 17 16 M6 2V4 M10 1V4 M14 2V4'],
+  ['bolt', 'Fulmine', 'lightning energia', 'M14 1L3 14H11L10 23L21 10H13Z'],
+  ['flame', 'Fiamma', 'fire fuoco', 'M12 1C14 10 20 6 21 14C23 25 1 25 3 14C4 9 8 10 12 1Z'],
+  ['snow', 'Fiocco di neve', 'snow inverno', 'M12 1V23 M2 6L22 18 M2 18L22 6 M8 3L12 6L16 3 M8 21L12 18L16 21 M2 10L6 9L6 5 M18 19L18 15L22 14 M2 14L6 15L6 19 M18 5L18 9L22 10'],
+  ['drop', 'Goccia', 'water acqua', 'M12 1C9 8 4 10 4 16C4 25 20 25 20 16C20 10 15 8 12 1Z'],
+  ['anchor', 'Ancora', 'anchor mare', 'M15 4A3 3 0 1 1 9 4A3 3 0 1 1 15 4Z M12 7V22 M7 11H17 M2 15C2 24 22 24 22 15 M1 17L2 14L5 16 M19 16L22 14L23 17'],
+  ['plane', 'Aereo', 'plane viaggio', 'M10 9V2C10 -1 14 -1 14 2V9L23 14V17L14 14V20L17 22V23L12 22L7 23V22L10 20V14L1 17V14Z'],
+  ['mountain', 'Montagna', 'mountain natura', 'M1 22L8 3L14 15L18 8L23 22Z M5 11L8 13L11 10'],
+  ['tent', 'Tenda', 'tent campeggio', 'M1 22L12 2L23 22Z M7 22L12 12L17 22'],
+  ['check', 'Spunta', 'check ok', 'M3 12L9 19L21 4'],
+  ['plus', 'Più', 'plus aggiungi', 'M12 3V21 M3 12H21'],
+  ['arrow', 'Freccia', 'arrow destra', 'M2 12H22 M14 4L22 12L14 20'],
+  ['key', 'Chiave', 'key', 'M13 7A6 6 0 1 1 1 7A6 6 0 1 1 13 7Z M11 11L22 22 M17 17L20 14 M20 20L23 17'],
+  ['lock', 'Lucchetto', 'lock sicurezza', 'M4 11H20V23H4Z M7 11V6C7 -1 17 -1 17 6V11 M12 16V19'],
+  ['bell', 'Campana', 'bell', 'M3 19L6 15V9C6 1 18 1 18 9V15L21 19Z M9 22H15'],
+  ['clock', 'Orologio', 'clock tempo', 'M22 12A10 10 0 1 1 2 12A10 10 0 1 1 22 12Z M12 5V12L17 15'],
+  ['pin', 'Segnaposto', 'pin posizione', 'M12 23C9 19 3 12 3 9C3 -2 21 -2 21 9C21 12 15 19 12 23Z M15 8A3 3 0 1 1 9 8A3 3 0 1 1 15 8Z'],
+  ['bulb', 'Lampadina', 'bulb idea', 'M8 17C8 14 3 13 3 8C3 -2 21 -2 21 8C21 13 16 14 16 17Z M8 20H16 M10 23H14'],
+] as const;
+export function findKeyIcon(label: string) { return KEY_ICONS.find(([id]) => label === `@icon:${id}`); }
+export function keyLabelName(label: string) { return findKeyIcon(label)?.[1] ?? label; }
+export function keyIconSvg(path: string) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 28 28"><path d="${path}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}

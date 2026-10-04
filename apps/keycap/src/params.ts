@@ -1,3 +1,4 @@
+import { findKeyIcon } from './icons.ts';
 import { FILAMENTS } from '@bdl/brand';
 import { DEFAULT_BLOCKS, readBlocks } from './blocks.ts';
 
@@ -56,6 +57,6 @@ export function readKeyLabels(raw: unknown): string[] {
   try {
     const items = JSON.parse(typeof raw === 'string' && raw.length < 2000 ? raw : 'null');
     if (!Array.isArray(items) || !items.length || items.length > 8 || items.some((v) => typeof v !== 'string')) return ['F', 'I', 'L', 'I'];
-    return items.map((v: string) => Array.from(v).slice(0, 12).join(''));
+    return items.map((v: string) => findKeyIcon(v) ? v : Array.from(v).slice(0, 12).join(''));
   } catch { return ['F', 'I', 'L', 'I']; }
 }

@@ -1,3 +1,4 @@
+import { findKeyIcon, keyIconSvg } from './icons.ts';
 import type { Vec2 } from '@bdl/geometry';
 import { parseSvg, type SvgArtwork } from '../../coaster/src/svg.ts';
 
@@ -20,6 +21,8 @@ export async function importArtwork(file: File, threshold: number): Promise<SvgA
 }
 
 export function textArtwork(text: string): SvgArtwork {
+  const icon = findKeyIcon(text);
+  if (icon) return parseSvg(keyIconSvg(icon[3]).replace('currentColor', '#000'), icon[1]);
   const canvas = document.createElement('canvas'); canvas.width = 192; canvas.height = 96;
   const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 192, 96);

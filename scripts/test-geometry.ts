@@ -12,6 +12,10 @@ import { groundPart, separateParts } from '../apps/coaster/src/parts.ts';
 import { bounds } from '@bdl/geometry';
 import { unzipSync, strFromU8 } from 'fflate';
 import { toSTL, to3MF } from '@bdl/export';
+import { buildKeycap, buildFitTest } from '../apps/keycap/src/geometry.ts';
+import { DEFAULTS as KEYCAP_DEFAULTS, sanitize as sanitizeKeycap } from '../apps/keycap/src/params.ts';
+import { traceRaster } from '../apps/keycap/src/artwork.ts';
+import { printPart as printKeycapPart, printAssembly as printKeycapAssembly } from '../apps/keycap/src/parts.ts';
 
 const M = await loadManifold();
 let failures = 0;
@@ -212,6 +216,70 @@ try {
   stripSvgDoctype('<!DOCTYPE svg [<!ENTITY example "value">]><svg/>');
   fail('svg: entità XML accettate');
 } catch { /* Le entità personalizzate non fanno parte dei tracciati SVG supportati. */ }
+
+// Clicker: i pezzi restano chiusi, sede e croce aperte, corsa libera di 4 mm.
+for (const shape of ['square', 'round', 'hex', 'artwork'] as const)
+for (const mode of ['inlay', 'relief', 'engrave'] as const)
+for (const switches of [1, 2, 3]) {
+  runs++;
+  const p = sanitizeKeycap({ ...KEYCAP_DEFAULTS, shape, mode, switches, size: 18, keychain: true });
+  // Un anello ha il centro vuoto: il nucleo strutturale deve comunque reggere il socket.
+  const res = buildKeycap(M, p, artwork);
+  const solids = res.parts.map((part) => {
+    const mesh = new M.Mesh({ numProp: 3, vertProperties: part.mesh.positions, triVerts: part.mesh.indices });
+    mesh.merge(); const m = new M.Manifold(mesh);
+    if (m.status() !== 'NoError' || m.volume() <= 0) fail(`clicker/${shape}/${mode}/${switches}/${part.id}: mesh non valida`);
+    return m;
+  });
+  try {
+    const base = solids[res.parts.findIndex((part) => part.id === 'base')];
+    const cap = solids[res.parts.findIndex((part) => part.id === 'cap')];
+    const pressed = cap.translate([0, 0, -4]);
+    const hit = base.intersect(pressed);
+    if (hit.volume() > 0.001) fail(`clicker/${shape}/${mode}/${switches}: pulsante collide con base durante la corsa`);
+    hit.delete(); pressed.delete();
+    for (let i = 0; i < switches; i++) {
+      const x = (i - (switches - 1) / 2) * p.spacing;
+      const stemProbe = M.Manifold.cylinder(3.5, 0.4, -1, 12);
+      const stemAt = stemProbe.translate([x, 0, 13.4]);
+      const stemHit = cap.intersect(stemAt);
+      if (stemHit.volume() > 0.001) fail('clicker: socket MX chiuso');
+      stemHit.delete(); stemAt.delete(); stemProbe.delete();
+      const seatProbe = M.Manifold.cylinder(9.8, 1, -1, 12);
+      const seatAt = seatProbe.translate([x, 0, 1.9]);
+      const seatHit = base.intersect(seatAt);
+      if (seatHit.volume() > 0.001) fail('clicker: sede switch chiusa');
+      seatHit.delete(); seatAt.delete(); seatProbe.delete();
+    }
+    if (Math.abs(bounds(res.parts.filter((part) => part.id === 'base')).min[2]) > 0.001) fail('clicker: base sollevata');
+    const model = strFromU8(unzipSync(to3MF(res.parts))['3D/3dmodel.model']);
+    if ((model.match(/<mesh>/g) ?? []).length !== res.parts.length) fail('clicker: export perde pezzi');
+    const printParts = printKeycapAssembly(res.parts, p.size);
+    const printModel = strFromU8(unzipSync(to3MF(printParts))['3D/3dmodel.model']);
+    if ((printModel.match(/<mesh>/g) ?? []).length !== res.parts.length || printModel.includes('NaN')) fail('clicker: 3MF di stampa non valido');
+    for (const part of res.parts) {
+      const ready = printKeycapPart(part);
+      if (Math.abs(bounds([ready]).min[2]) > 0.001) fail('clicker: STL separato non sul piano');
+      if (Math.abs(volumeOf([ready]) - volumeOf([part])) > 0.01) fail('clicker: orientazione cambia il volume o inverte le facce');
+    }
+  } finally { solids.forEach((m) => m.delete()); }
+}
+for (const stemFit of [-0.1, 0.35]) {
+  runs++;
+  const p = sanitizeKeycap({ ...KEYCAP_DEFAULTS, product: 'keycap', stemFit, switches: 3, size: NaN });
+  const result = buildKeycap(M, p);
+  if (result.parts.length !== 1 || p.switches !== 1 || volumeOf(result.parts) <= 0) fail('keycap: parametri/export non validi');
+}
+const fitTiles = buildFitTest(M, 0, KEYCAP_DEFAULTS.capColor);
+if (fitTiles.length !== 5 || fitTiles.some((part) => Math.abs(bounds([part]).min[2]) > 0.001) || volumeOf(fitTiles) <= 0) fail('MX: campioni non validi');
+// Tracciamento raster: il foro bianco centrale deve sopravvivere alla conversione.
+const raster = { width: 3, height: 3, data: new Uint8ClampedArray(36) };
+for (let i = 0; i < 9; i++) { raster.data[i * 4 + 3] = 255; if (i === 4) raster.data.fill(255, i * 4, i * 4 + 4); }
+const traced = traceRaster(raster, 'ring.png', 180);
+const rasterPieces = traced.shapes.map((rings) => M.CrossSection.ofPolygons(rings, 'EvenOdd'));
+const ring = M.CrossSection.union(rasterPieces);
+if (Math.abs(ring.area() - 8 / 9) > 0.001) fail('clicker: tracciamento raster perde il foro');
+ring.delete(); rasterPieces.forEach((piece) => piece.delete());
 
 console.log(`${runs} combinazioni provate, ${failures} errori`);
 process.exit(failures ? 1 : 0);

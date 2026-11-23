@@ -7,6 +7,10 @@ import { resolve } from 'node:path';
 // la sua voce al registro, nient'altro.
 const root = resolve(import.meta.dirname, 'apps');
 const registry = JSON.parse(readFileSync(resolve(import.meta.dirname, 'generators.json'), 'utf8'));
+const umamiWebsiteId = process.env.VITE_UMAMI_WEBSITE_ID?.trim();
+if (umamiWebsiteId && !/^[\w-]+$/.test(umamiWebsiteId)) {
+  throw new Error('VITE_UMAMI_WEBSITE_ID contiene caratteri non validi');
+}
 const input: Record<string, string> = { hub: resolve(root, 'index.html') };
 for (const g of registry.generators) {
   if (g.status === 'planned') continue;
@@ -18,6 +22,15 @@ for (const g of registry.generators) {
 export default defineConfig({
   root,
   base: './',
+  // L'ID pubblico del sito abilita Umami senza esporre credenziali.
+  // La variabile vuota lascia la suite senza tracker, ad esempio in locale.
+  plugins: umamiWebsiteId ? [{
+    name: 'bdl-umami',
+    transformIndexHtml(html: string) {
+      const script = `<script defer src="https://cloud.umami.is/script.js" data-website-id="${umamiWebsiteId}"></script>`;
+      return html.replace('</head>', `  ${script}\n</head>`);
+    },
+  }] : [],
   publicDir: resolve(import.meta.dirname, 'public'),
   build: {
     outDir: resolve(import.meta.dirname, 'dist'),
